@@ -197,9 +197,9 @@ function toggleAdminMode() {
   const dot = document.getElementById('admin-toggle-dot');
   const header = document.querySelector('.header');
   if (_adminMode) {
-    btn.style.background = 'var(--red)';
-    dot.style.left = '19px';
-    dot.style.background = '#fff';
+    btn.style.background = '#f85149';
+    dot.style.left = '21px';
+    dot.style.background = '#ffffff';
     if (header) header.style.borderBottom = '2px solid var(--red)';
     // Show admin mode banner
     let banner = document.getElementById('admin-banner');
@@ -213,7 +213,7 @@ function toggleAdminMode() {
     }
     banner.style.display = 'block';
   } else {
-    btn.style.background = 'var(--border)';
+    btn.style.background = '#30363d';
     dot.style.left = '3px';
     dot.style.background = '#8b949e';
     if (header) header.style.borderBottom = '';
@@ -283,9 +283,9 @@ async function adminSaveHorseData(btn) {
   <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:10px;">
     <div id="admin-mode-toggle" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Admin</span>
-      <button id="admin-toggle-btn" onclick="toggleAdminMode()" style="background:var(--border);border:none;border-radius:12px;width:36px;height:20px;cursor:pointer;position:relative;transition:background 0.2s;" title="Toggle admin mode">
-        <span id="admin-toggle-dot" style="position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#8b949e;transition:all 0.2s;"></span>
-      </button>
+      <div onclick="toggleAdminMode()" id="admin-toggle-btn" title="Toggle admin mode" style="width:40px;height:22px;border-radius:11px;background:#30363d;cursor:pointer;position:relative;transition:background 0.25s ease;flex-shrink:0;">
+        <div id="admin-toggle-dot" style="position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#8b949e;transition:left 0.25s ease,background 0.25s ease;"></div>
+      </div>
     </div>
     <span id="auth-user-label" style="font-size:11px;color:var(--muted);"></span>
     <button onclick="handleLogout()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Sign Out</button>
