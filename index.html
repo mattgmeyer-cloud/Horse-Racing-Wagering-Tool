@@ -1974,43 +1974,54 @@ async function signInWithGoogle() {
 }
 
 // Handle return from Google OAuth redirect — called on page load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   if (!code) return;
 
-  // Returning from Google OAuth — show loading state immediately
+  // Show loading state immediately
   const loadEl = document.getElementById('auth-loading');
   const stepEl = document.getElementById('auth-step');
+  const errEl  = document.getElementById('auth-error');
   if (loadEl) loadEl.style.display = 'block';
   if (stepEl) stepEl.textContent = 'Completing Google sign-in…';
 
   // Clean URL so a hard refresh does not re-trigger
   window.history.replaceState({}, '', window.location.pathname);
 
-  // The Supabase client (PKCE mode) handles code exchange internally.
-  // Use a one-time onAuthStateChange to catch the resulting session.
-  let _oauthHandled = false;
+  async function finishOAuthLogin(user) {
+    _currentUser = user;
+    _loading = true;
+    try {
+      await loadHorsesFromSupabase(
+        user.id,
+        user.email || (user.user_metadata && user.user_metadata.email)
+      );
+    } catch(err) {
+      console.error('OAuth loadHorses error:', err);
+      if (loadEl) loadEl.style.display = 'none';
+      if (errEl) errEl.textContent = 'Sign-in error: ' + (err.message || String(err));
+    } finally {
+      _loading = false;
+    }
+  }
+
+  // The Supabase client may have already exchanged the code before DOMContentLoaded.
+  // Check getSession() first as the fast path.
+  const { data: existing } = await _sb.auth.getSession();
+  if (existing && existing.session && existing.session.user) {
+    await finishOAuthLogin(existing.session.user);
+    return;
+  }
+
+  // If not yet ready, wait for onAuthStateChange (code exchange still in flight).
+  let _handled = false;
   const { data: { subscription } } = _sb.auth.onAuthStateChange(async (event, session) => {
-    if (_oauthHandled) return;
+    if (_handled) return;
     if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
-      _oauthHandled = true;
+      _handled = true;
       subscription.unsubscribe();
-      _currentUser = session.user;
-      _loading = true;
-      try {
-        await loadHorsesFromSupabase(
-          session.user.id,
-          session.user.email || (session.user.user_metadata && session.user.user_metadata.email)
-        );
-      } catch(err) {
-        console.error('OAuth loadHorses error:', err);
-        if (loadEl) loadEl.style.display = 'none';
-        const errEl = document.getElementById('auth-error');
-        if (errEl) errEl.textContent = 'Sign-in error: ' + (err.message || String(err));
-      } finally {
-        _loading = false;
-      }
+      await finishOAuthLogin(session.user);
     }
   });
 });
