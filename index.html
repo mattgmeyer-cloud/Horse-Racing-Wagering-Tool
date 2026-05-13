@@ -2498,15 +2498,15 @@ async function _getHandle() {
 async function saveHorseData() {
   const btn = document.getElementById('save-horses-btn');
   if (_adminMode) { await adminSaveHorseData(btn); return; }
-  const { data: { session } } = await _sb.auth.getSession();
-  if (!session) { alert('Not signed in.'); return; }
+  if (!_currentUser) { alert('Not signed in.'); return; }
   if (!_currentProfileId) { alert('No active race profile.'); return; }
   if (btn) btn.textContent = 'Saving…';
   try {
+    let firstError = null;
     for (const h of horses) {
       if (!h._sbId) continue;
-      // Upsert override row (only user-changed fields)
-      await _sb.from('horse_overrides').upsert({
+      // Upsert override row
+      const { error: ovErr } = await _sb.from('horse_overrides').upsert({
         profile_id: _currentProfileId, horse_id: h._sbId,
         ignore_trend: h.ignoreTrend,
         last_speed: h.lastSpeed,
@@ -2514,23 +2514,28 @@ async function saveHorseData() {
         dslr: h.dslr,
         last_race_class: h.lastRaceClass || 'g3'
       }, { onConflict: 'profile_id,horse_id' });
+      if (ovErr && !firstError) { firstError = 'override upsert: ' + ovErr.message; console.error('override upsert error', h.name, ovErr); }
       // Update race entry (post position, actual odds)
-      await _sb.from('race_entries')
+      const { error: entErr } = await _sb.from('race_entries')
         .update({ post_position: h.post, act_odds: h.act })
         .eq('profile_id', _currentProfileId).eq('horse_id', h._sbId);
+      if (entErr && !firstError) { firstError = 'entry update: ' + entErr.message; console.error('entry update error', h.name, entErr); }
     }
+    if (firstError) { throw new Error(firstError); }
     // Also save current weights to user's race profile
     const currentWeights = {};
     ['speed','trend','dslr','pace','surf','trainer','class'].forEach(k => {
       const el = document.getElementById('w-' + k);
       if (el) currentWeights[k] = +el.value;
     });
-    await _sb.from('race_profiles').update({ weights: currentWeights }).eq('id', _currentProfileId);
+    const { error: wErr } = await _sb.from('race_profiles').update({ weights: currentWeights }).eq('id', _currentProfileId);
+    if (wErr) console.error('weights save error', wErr);
 
     if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>btn.textContent='Save Horse Data',1500); }
   } catch(e) {
-    console.error(e);
+    console.error('saveHorseData error:', e);
     if (btn) { btn.textContent = '✗ Failed'; setTimeout(()=>btn.textContent='Save Horse Data',2000); }
+    alert('Save failed: ' + e.message);
   }
 }
 
