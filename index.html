@@ -1977,14 +1977,31 @@ async function signInWithGoogle() {
 document.addEventListener('DOMContentLoaded', () => { handleOAuthReturn(); });
 
 async function handleOAuthReturn() {
-  const hash = window.location.hash;
   const params = new URLSearchParams(window.location.search);
-  if (!params.get('code') && !hash.includes('access_token')) return;
-  // Clean up URL immediately
+  const hash = window.location.hash;
+  const code = params.get('code');
+
+  if (!code && !hash.includes('access_token')) return;
+
+  // Clean URL so a refresh doesn't re-trigger this
   window.history.replaceState({}, '', window.location.pathname);
-  const { data, error } = await _sb.auth.getSession();
-  if (error || !data?.session?.user) return;
-  const user = data.session.user;
+
+  let user = null;
+  if (code) {
+    // PKCE flow — exchange code for session explicitly
+    const { data, error } = await _sb.auth.exchangeCodeForSession(code);
+    if (error || !data?.session?.user) {
+      console.error('OAuth code exchange failed:', error);
+      return;
+    }
+    user = data.session.user;
+  } else {
+    // Implicit flow — session is already in the hash
+    const { data, error } = await _sb.auth.getSession();
+    if (error || !data?.session?.user) return;
+    user = data.session.user;
+  }
+
   _currentUser = user;
   document.getElementById('auth-loading').style.display = 'block';
   _loading = true;
