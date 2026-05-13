@@ -127,8 +127,27 @@ td input[type="text"] { width: 130px; }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .ai-model-sel { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-size:11px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<!-- ─── AUTH OVERLAY ─────────────────────────────────────────────────────── -->
+<div id="auth-overlay" style="position:fixed;inset:0;background:#0d1117;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:36px 32px;width:380px;max-width:92%;">
+    <div style="font-size:22px;font-weight:800;color:#e6edf3;margin-bottom:4px;">🏇 Preakness Model</div>
+    <div style="font-size:12px;color:#8b949e;margin-bottom:24px;">2026 Stakes — Sign in to access your race profile</div>
+    <div style="display:flex;gap:0;margin-bottom:20px;border:1px solid #30363d;border-radius:6px;overflow:hidden;">
+      <button id="tab-signin" onclick="setAuthMode('signin')" style="flex:1;padding:8px;background:#1c2128;border:none;color:#e6edf3;font-size:12px;font-weight:700;cursor:pointer;">Sign In</button>
+      <button id="tab-signup" onclick="setAuthMode('signup')" style="flex:1;padding:8px;background:transparent;border:none;color:#8b949e;font-size:12px;font-weight:700;cursor:pointer;">Sign Up</button>
+    </div>
+    <input type="email" id="auth-email" placeholder="Email address" style="width:100%;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:6px;font-size:13px;margin-bottom:10px;outline:none;">
+    <input type="password" id="auth-password" placeholder="Password" onkeydown="if(event.key==='Enter')handleAuth()" style="width:100%;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:6px;font-size:13px;margin-bottom:16px;outline:none;">
+    <button onclick="handleAuth()" id="auth-btn" style="width:100%;background:#238636;border:none;color:#fff;padding:10px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">Sign In</button>
+    <div id="auth-error" style="color:#f85149;font-size:11px;margin-top:10px;min-height:16px;"></div>
+    <div id="auth-loading" style="display:none;color:#8b949e;font-size:11px;margin-top:10px;text-align:center;">Loading your race profile…</div>
+  </div>
+</div>
+<!-- ─── MAIN APP (hidden until auth) ─────────────────────────────────────── -->
+<div id="main-app" style="display:none;">
 
 <div class="header">
   <h1>🏇 2026 Preakness Stakes — Betting Model
@@ -1768,6 +1787,174 @@ td input[type="text"] { width: 130px; }
 </div>
 
 <script>
+// ─── SUPABASE ──────────────────────────────────────────────────────────────
+const SUPA_URL = 'https://nwbswsasqvynpugxhyly.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53YnN3c2FzcXZ5bnB1Z3hoeWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTYwMjEsImV4cCI6MjA5NDI3MjAyMX0.JH6QsNrmHzf70fPMOJwTZqtBzLaPueKGjBL17_-PbzU';
+const _sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let _currentProfileId = null;
+let _horseIdMap = {}; // name -> supabase uuid
+
+// Post positions and morning lines for the 2026 Preakness
+const PREAKNESS_POSTS = {
+  'Taj Mahal':1,'Ocelli':2,'Crupper':3,'Robusta':4,'Talkin':5,
+  'Chip Honcho':6,'The Hell We Did':7,'Bull by the Horns':8,
+  'Iron Honor':9,'Napoleon Solo':10,'Corona de Oro':11,
+  'Incredibolt':12,'Great White':13,'Pretty Boy Miah':14
+};
+const PREAKNESS_ML = {
+  'Taj Mahal':5,'Ocelli':6,'Crupper':30,'Robusta':30,'Talkin':20,
+  'Chip Honcho':5,'The Hell We Did':15,'Bull by the Horns':30,
+  'Iron Honor':4.5,'Napoleon Solo':8,'Corona de Oro':30,
+  'Incredibolt':5,'Great White':15,'Pretty Boy Miah':15
+};
+
+// ─── AUTH UI ───────────────────────────────────────────────────────────────
+let _authMode = 'signin';
+function setAuthMode(mode) {
+  _authMode = mode;
+  document.getElementById('tab-signin').style.background = mode==='signin' ? '#1c2128' : 'transparent';
+  document.getElementById('tab-signin').style.color = mode==='signin' ? '#e6edf3' : '#8b949e';
+  document.getElementById('tab-signup').style.background = mode==='signup' ? '#1c2128' : 'transparent';
+  document.getElementById('tab-signup').style.color = mode==='signup' ? '#e6edf3' : '#8b949e';
+  document.getElementById('auth-btn').textContent = mode==='signin' ? 'Sign In' : 'Create Account';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Email and password required.'; return; }
+  document.getElementById('auth-btn').textContent = 'Please wait…';
+  let result;
+  if (_authMode === 'signin') {
+    result = await _sb.auth.signInWithPassword({ email, password });
+  } else {
+    result = await _sb.auth.signUp({ email, password });
+  }
+  if (result.error) {
+    document.getElementById('auth-btn').textContent = _authMode==='signin' ? 'Sign In' : 'Create Account';
+    errEl.textContent = result.error.message;
+  }
+  // onAuthStateChange handles the rest
+}
+
+async function handleLogout() {
+  await _sb.auth.signOut();
+}
+
+// ─── SHOW / HIDE APP ───────────────────────────────────────────────────────
+function showApp(email) {
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('main-app').style.display = 'block';
+  const lbl = document.getElementById('auth-user-label');
+  if (lbl) lbl.textContent = email || '';
+}
+function showAuth() {
+  document.getElementById('auth-overlay').style.display = 'flex';
+  document.getElementById('main-app').style.display = 'none';
+}
+
+// ─── LOAD HORSES FROM SUPABASE ─────────────────────────────────────────────
+async function loadHorsesFromSupabase(userId, userEmail) {
+  document.getElementById('auth-loading').style.display = 'block';
+  try {
+    // 1. Get base horse data
+    const { data: baseHorses, error: he } = await _sb.from('horses').select('*');
+    if (he) throw he;
+
+    // 2. Get Laurel Park track id
+    const { data: tracks } = await _sb.from('tracks').select('id').eq('name','Laurel Park').single();
+    const trackId = tracks?.id;
+
+    // 3. Get or create user's Preakness race profile
+    let { data: profiles } = await _sb.from('race_profiles')
+      .select('*').eq('user_id', userId).eq('name', '2026 Preakness Stakes');
+    
+    let profileId;
+    if (!profiles?.length) {
+      // New user — create profile
+      const { data: newProfile, error: pe } = await _sb.from('race_profiles')
+        .insert({ user_id: userId, track_id: trackId, name: '2026 Preakness Stakes', scenario: 'meltdown',
+                  weights: {speed:25,trend:10,dslr:20,pace:25,surf:15,trainer:5,class:10} })
+        .select().single();
+      if (pe) throw pe;
+      profileId = newProfile.id;
+
+      // Create race entries for all horses
+      const entries = baseHorses.map(h => ({
+        profile_id: profileId, horse_id: h.id,
+        post_position: PREAKNESS_POSTS[h.name] || 99,
+        ml: PREAKNESS_ML[h.name] || 30,
+        act_odds: null
+      }));
+      await _sb.from('race_entries').insert(entries);
+    } else {
+      profileId = profiles[0].id;
+    }
+    _currentProfileId = profileId;
+
+    // 4. Fetch entries and overrides
+    const { data: entries } = await _sb.from('race_entries').select('*').eq('profile_id', profileId);
+    const { data: overrides } = await _sb.from('horse_overrides').select('*').eq('profile_id', profileId);
+
+    const entryMap = {};
+    entries?.forEach(e => { entryMap[e.horse_id] = e; });
+    const ovMap = {};
+    overrides?.forEach(o => { ovMap[o.horse_id] = o; });
+
+    // 5. Build horses array (sorted by post position)
+    _horseIdMap = {};
+    const built = baseHorses.map((h, i) => {
+      _horseIdMap[h.name] = h.id;
+      const en = entryMap[h.id] || {};
+      const ov = ovMap[h.id] || {};
+      return {
+        id: PREAKNESS_POSTS[h.name] || (i+1),
+        _sbId: h.id,
+        name: h.name, trainer: h.trainer,
+        post: en.post_position || PREAKNESS_POSTS[h.name] || (i+1),
+        ml: en.ml || PREAKNESS_ML[h.name] || 30,
+        act: en.act_odds !== undefined ? en.act_odds : null,
+        lastSpeed: ov.last_speed ?? h.last_speed,
+        speed2back: ov.prev_speed ?? h.prev_speed,
+        dslr: ov.dslr ?? h.dslr,
+        paceRole: h.running_style,
+        surfAdj: h.surf_adj || 0,
+        trainerAdj: h.trainer_adj || 0,
+        ignoreTrend: ov.ignore_trend ?? h.ignore_trend ?? false,
+        lastRaceClass: ov.last_race_class ?? h.last_race_class ?? 'g3',
+        notes: h.notes || ''
+      };
+    });
+    built.sort((a,b) => a.post - b.post);
+    horses = built;
+    nextId = horses.length + 1;
+
+    document.getElementById('auth-loading').style.display = 'none';
+    showApp(userEmail);
+    // Re-render inputs and compute model
+    if (typeof renderInputTable === 'function') renderInputTable();
+    if (typeof computeModel === 'function') computeModel();
+  } catch(err) {
+    document.getElementById('auth-loading').style.display = 'none';
+    document.getElementById('auth-error').style.display = 'block';
+    document.getElementById('auth-error').textContent = 'Error loading data: ' + (err.message || err);
+    console.error(err);
+  }
+}
+
+// ─── AUTH STATE LISTENER ───────────────────────────────────────────────────
+_sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    await loadHorsesFromSupabase(session.user.id, session.user.email);
+  } else {
+    showAuth();
+  }
+});
+
 // ─── DATA ──────────────────────────────────────────────────────────────────
 const POST_COLORS = ['#e8342a','#e8e8e8','#1a6de3','#f5d020','#3db83d','#2bbfbf','#f5a623','#e84bcc','#9b59b6','#ff6b35','#5d4037','#607d8b','#795548','#e91e63'];
 
@@ -2119,28 +2306,34 @@ async function _getHandle() {
   return _fh;
 }
 
-function saveHorseData() {
+async function saveHorseData() {
   const btn = document.getElementById('save-horses-btn');
-  const esc = s => String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  const horsesCode = 'let horses = [\n' + horses.map(h =>
-    `  {\n    id:${h.id}, name:'${esc(h.name)}', trainer:'${esc(h.trainer)}', post:${h.post}, ml:${h.ml}, act:${h.act===null?'null':h.act},\n    lastSpeed:${h.lastSpeed}, speed2back:${h.speed2back}, dslr:${h.dslr}, paceRole:'${h.paceRole}', surfAdj:${h.surfAdj}, trainerAdj:${h.trainerAdj}, ignoreTrend:${h.ignoreTrend}, lastRaceClass:'${h.lastRaceClass||'g3'}',\n    notes:'${esc(h.notes)}'\n  }`
-  ).join(',\n') + '\n];';
-  let src = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  src = src.replace(/let horses = \[[\s\S]*?\n\];/, horsesCode);
-  const blob = new Blob([src], {type:'text/html'});
-
-  (async () => {
-    try {
-      if (btn) btn.textContent = 'Saving…';
-      const fh = _fh || await _getHandle();
-      const w = await fh.createWritable();
-      await w.write(blob); await w.close();
-      if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>btn.textContent='Save Horse Data',1500); }
-    } catch(e) {
-      if (e.name === 'AbortError') { if (btn) btn.textContent='Save Horse Data'; return; }
-      if (btn) { btn.textContent='✗ Failed'; setTimeout(()=>btn.textContent='Save Horse Data',2000); }
+  const { data: { session } } = await _sb.auth.getSession();
+  if (!session) { alert('Not signed in.'); return; }
+  if (!_currentProfileId) { alert('No active race profile.'); return; }
+  if (btn) btn.textContent = 'Saving…';
+  try {
+    for (const h of horses) {
+      if (!h._sbId) continue;
+      // Upsert override row (only user-changed fields)
+      await _sb.from('horse_overrides').upsert({
+        profile_id: _currentProfileId, horse_id: h._sbId,
+        ignore_trend: h.ignoreTrend,
+        last_speed: h.lastSpeed,
+        prev_speed: h.speed2back,
+        dslr: h.dslr,
+        last_race_class: h.lastRaceClass || 'g3'
+      }, { onConflict: 'profile_id,horse_id' });
+      // Update race entry (post position, actual odds)
+      await _sb.from('race_entries')
+        .update({ post_position: h.post, act_odds: h.act })
+        .eq('profile_id', _currentProfileId).eq('horse_id', h._sbId);
     }
-  })();
+    if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>btn.textContent='Save Horse Data',1500); }
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.textContent = '✗ Failed'; setTimeout(()=>btn.textContent='Save Horse Data',2000); }
+  }
 }
 
 // ─── SORT OUTPUT TABLE ─────────────────────────────────────────────────────
@@ -2861,4 +3054,5 @@ renderScenarioMods();
 </script>
 
 
+</div><!-- /main-app -->
 </body></html>
