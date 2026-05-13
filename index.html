@@ -1865,9 +1865,12 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     setStep('connecting…');
     // 1. Get base horse data
     setStep('fetching horses…');
-    const { data: baseHorses, error: he } = await _sb.from('horses').select('*');
+    const horsesPromise = _sb.from('horses').select('*');
+    const timeout = new Promise((_,rej) => setTimeout(() => rej(new Error('Supabase timeout after 8s — check network')), 8000));
+    const { data: baseHorses, error: he } = await Promise.race([horsesPromise, timeout]);
     if (he) throw he;
-    setStep(`got ${baseHorses?.length ?? 0} horses`);
+    if (!baseHorses?.length) throw new Error('No horse data returned — RLS may be blocking the query');
+    setStep(`got ${baseHorses.length} horses`);
 
     // 2. Get Laurel Park track id
     setStep('fetching track…');
