@@ -1935,22 +1935,37 @@ async function loadHorsesFromSupabase(userId, userEmail) {
 
     document.getElementById('auth-loading').style.display = 'none';
     showApp(userEmail);
-    // Re-render inputs and compute model
-    if (typeof renderInputTable === 'function') renderInputTable();
-    if (typeof computeModel === 'function') computeModel();
+    // Re-render inputs and compute model after DOM paint
+    setTimeout(() => {
+      try {
+        if (typeof renderInputTable === 'function') renderInputTable();
+        if (typeof computeModel === 'function') computeModel();
+      } catch(renderErr) {
+        console.error('Render error:', renderErr);
+      }
+    }, 50);
   } catch(err) {
-    document.getElementById('auth-loading').style.display = 'none';
-    document.getElementById('auth-error').style.display = 'block';
-    document.getElementById('auth-error').textContent = 'Error loading data: ' + (err.message || err);
-    console.error(err);
+    console.error('loadHorsesFromSupabase error:', err);
+    const loadEl = document.getElementById('auth-loading');
+    const errEl = document.getElementById('auth-error');
+    if (loadEl) loadEl.style.display = 'none';
+    if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Error: ' + (err.message || JSON.stringify(err)); }
   }
 }
 
 // ─── AUTH STATE LISTENER ───────────────────────────────────────────────────
+let _loading = false;
 _sb.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
-    await loadHorsesFromSupabase(session.user.id, session.user.email);
+    if (_loading) return; // prevent double-fire
+    _loading = true;
+    try {
+      await loadHorsesFromSupabase(session.user.id, session.user.email);
+    } finally {
+      _loading = false;
+    }
   } else {
+    _loading = false;
     showAuth();
   }
 });
