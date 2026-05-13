@@ -1865,11 +1865,9 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     setStep('connecting…');
     // 1. Get base horse data
     setStep('fetching horses…');
-    const horsesPromise = _sb.from('horses').select('*');
-    const timeout = new Promise((_,rej) => setTimeout(() => rej(new Error('Supabase timeout after 8s — check network')), 8000));
-    const { data: baseHorses, error: he } = await Promise.race([horsesPromise, timeout]);
+    const { data: baseHorses, error: he } = await _sb.from('horses').select('*');
     if (he) throw he;
-    if (!baseHorses?.length) throw new Error('No horse data returned — RLS may be blocking the query');
+    if (!baseHorses?.length) throw new Error('No horse data returned');
     setStep(`got ${baseHorses.length} horses`);
 
     // 2. Get Laurel Park track id
@@ -1968,8 +1966,23 @@ async function loadHorsesFromSupabase(userId, userEmail) {
 // ─── AUTH STATE LISTENER ───────────────────────────────────────────────────
 let _loading = false;
 _sb.auth.onAuthStateChange(async (event, session) => {
+  // Skip INITIAL_SESSION — token may be mid-refresh; wait for TOKEN_REFRESHED or SIGNED_IN
+  if (event === 'INITIAL_SESSION') {
+    if (!session) showAuth();
+    // If session exists, TOKEN_REFRESHED will fire shortly and handle the load
+    // Fallback: if token isn't expired, TOKEN_REFRESHED won't fire, so load after short delay
+    if (session?.user) {
+      setTimeout(async () => {
+        if (_loading) return;
+        _loading = true;
+        try { await loadHorsesFromSupabase(session.user.id, session.user.email); }
+        finally { _loading = false; }
+      }, 500);
+    }
+    return;
+  }
   if (session?.user) {
-    if (_loading) return; // prevent double-fire
+    if (_loading) return;
     _loading = true;
     try {
       await loadHorsesFromSupabase(session.user.id, session.user.email);
