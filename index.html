@@ -1822,7 +1822,6 @@ function setAuthMode(mode) {
 }
 
 async function handleAuth() {
-  _userInitiated = true;
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const errEl = document.getElementById('auth-error');
@@ -1838,8 +1837,19 @@ async function handleAuth() {
   if (result.error) {
     document.getElementById('auth-btn').textContent = _authMode==='signin' ? 'Sign In' : 'Create Account';
     errEl.textContent = result.error.message;
+    return;
   }
-  // onAuthStateChange handles the rest
+  const user = result.data?.user || result.data?.session?.user;
+  if (user) {
+    if (!_loading) {
+      _loading = true;
+      try { await loadHorsesFromSupabase(user.id, user.email); }
+      finally { _loading = false; }
+    }
+  } else {
+    errEl.textContent = 'Sign up successful — check your email to confirm.';
+    document.getElementById('auth-btn').textContent = 'Sign In';
+  }
 }
 
 async function handleLogout() {
@@ -1966,34 +1976,7 @@ async function loadHorsesFromSupabase(userId, userEmail) {
 
 // ─── AUTH STATE LISTENER ───────────────────────────────────────────────────
 let _loading = false;
-// Flag set only when user explicitly clicks Sign In or Sign Up
-let _userInitiated = false;
-
-_sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session?.user && _userInitiated) {
-    _userInitiated = false;
-    if (_loading) return;
-    _loading = true;
-    try {
-      await loadHorsesFromSupabase(session.user.id, session.user.email);
-    } finally {
-      _loading = false;
-    }
-    return;
-  }
-  if (event === 'SIGNED_OUT') {
-    _loading = false;
-    showAuth();
-    return;
-  }
-  // Everything else (INITIAL_SESSION, TOKEN_REFRESHED, auto-restore SIGNED_IN) — stay on login screen
-  if (!document.getElementById('main-app') || document.getElementById('main-app').style.display === 'none') {
-    if (session?.user) {
-      const emailEl = document.getElementById('auth-email');
-      if (emailEl && !emailEl.value) emailEl.value = session.user.email;
-    }
-  }
-});
+// No onAuthStateChange — app loads only on explicit Sign In click
 
 // ─── DATA ──────────────────────────────────────────────────────────────────
 const POST_COLORS = ['#e8342a','#e8e8e8','#1a6de3','#f5d020','#3db83d','#2bbfbf','#f5a623','#e84bcc','#9b59b6','#ff6b35','#5d4037','#607d8b','#795548','#e91e63'];
