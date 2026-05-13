@@ -1822,6 +1822,7 @@ function setAuthMode(mode) {
 }
 
 async function handleAuth() {
+  _userInitiated = true;
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const errEl = document.getElementById('auth-error');
@@ -1965,18 +1966,12 @@ async function loadHorsesFromSupabase(userId, userEmail) {
 
 // ─── AUTH STATE LISTENER ───────────────────────────────────────────────────
 let _loading = false;
+// Flag set only when user explicitly clicks Sign In or Sign Up
+let _userInitiated = false;
+
 _sb.auth.onAuthStateChange(async (event, session) => {
-  // Only fire on explicit SIGNED_IN (user clicked Sign In).
-  // INITIAL_SESSION + TOKEN_REFRESHED fire automatically on page load — always show login screen.
-  if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-    if (session?.user) {
-      const emailEl = document.getElementById('auth-email');
-      if (emailEl && !emailEl.value) emailEl.value = session.user.email;
-    }
-    showAuth();
-    return;
-  }
-  if (event === 'SIGNED_IN' && session?.user) {
+  if (event === 'SIGNED_IN' && session?.user && _userInitiated) {
+    _userInitiated = false;
     if (_loading) return;
     _loading = true;
     try {
@@ -1989,6 +1984,14 @@ _sb.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_OUT') {
     _loading = false;
     showAuth();
+    return;
+  }
+  // Everything else (INITIAL_SESSION, TOKEN_REFRESHED, auto-restore SIGNED_IN) — stay on login screen
+  if (!document.getElementById('main-app') || document.getElementById('main-app').style.display === 'none') {
+    if (session?.user) {
+      const emailEl = document.getElementById('auth-email');
+      if (emailEl && !emailEl.value) emailEl.value = session.user.email;
+    }
   }
 });
 
