@@ -13,6 +13,12 @@
   --purple: #bc8cff; --text: #e6edf3; --muted: #8b949e;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+.admin-switch { position:relative; display:inline-block; width:40px; height:22px; }
+.admin-switch input { opacity:0; width:0; height:0; }
+.admin-slider { position:absolute; cursor:pointer; inset:0; background:#30363d; border-radius:11px; transition:.25s; }
+.admin-slider:before { position:absolute; content:""; height:16px; width:16px; left:3px; bottom:3px; background:#8b949e; border-radius:50%; transition:.25s; }
+.admin-switch input:checked + .admin-slider { background:#f85149; }
+.admin-switch input:checked + .admin-slider:before { transform:translateX(18px); background:#fff; }
 body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; padding: 16px; max-width: 1300px; margin: 0 auto; }
 
 .header { margin-bottom: 20px; }
@@ -191,16 +197,11 @@ async function restoreSelected() {
 
 // ─── ADMIN MODE ────────────────────────────────────────────────────────────
 function toggleAdminMode() {
-  if (!_isAdmin) return;
-  _adminMode = !_adminMode;
-  const btn = document.getElementById('admin-toggle-btn');
-  const dot = document.getElementById('admin-toggle-dot');
+  if (!_isAdmin) { document.getElementById('admin-toggle-btn').checked = false; return; }
+  _adminMode = document.getElementById('admin-toggle-btn').checked;
   const header = document.querySelector('.header');
   if (_adminMode) {
-    btn.style.background = '#f85149';
-    dot.style.left = '21px';
-    dot.style.background = '#ffffff';
-    if (header) header.style.borderBottom = '2px solid var(--red)';
+    if (header) header.style.borderBottom = '2px solid #f85149';
     // Show admin mode banner
     let banner = document.getElementById('admin-banner');
     if (!banner) {
@@ -213,9 +214,6 @@ function toggleAdminMode() {
     }
     banner.style.display = 'block';
   } else {
-    btn.style.background = '#30363d';
-    dot.style.left = '3px';
-    dot.style.background = '#8b949e';
     if (header) header.style.borderBottom = '';
     const banner = document.getElementById('admin-banner');
     if (banner) banner.style.display = 'none';
@@ -283,9 +281,10 @@ async function adminSaveHorseData(btn) {
   <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:10px;">
     <div id="admin-mode-toggle" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Admin</span>
-      <div onclick="toggleAdminMode()" id="admin-toggle-btn" title="Toggle admin mode" style="width:40px;height:22px;border-radius:11px;background:#30363d;cursor:pointer;position:relative;transition:background 0.25s ease;flex-shrink:0;">
-        <div id="admin-toggle-dot" style="position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#8b949e;transition:left 0.25s ease,background 0.25s ease;"></div>
-      </div>
+      <label class="admin-switch" title="Toggle admin mode">
+        <input type="checkbox" id="admin-toggle-btn" onchange="toggleAdminMode()">
+        <span class="admin-slider"></span>
+      </label>
     </div>
     <span id="auth-user-label" style="font-size:11px;color:var(--muted);"></span>
     <button onclick="handleLogout()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Sign Out</button>
