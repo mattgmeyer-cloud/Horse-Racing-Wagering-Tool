@@ -188,6 +188,66 @@ async function restoreSelected() {
   }
 }
 
+
+// ─── ADMIN MODE ────────────────────────────────────────────────────────────
+function toggleAdminMode() {
+  if (!_isAdmin) return;
+  _adminMode = !_adminMode;
+  const btn = document.getElementById('admin-toggle-btn');
+  const dot = document.getElementById('admin-toggle-dot');
+  const header = document.querySelector('.header');
+  if (_adminMode) {
+    btn.style.background = 'var(--red)';
+    dot.style.left = '19px';
+    dot.style.background = '#fff';
+    if (header) header.style.borderBottom = '2px solid var(--red)';
+    // Show admin mode banner
+    let banner = document.getElementById('admin-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'admin-banner';
+      banner.style.cssText = 'background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 14px;font-size:11px;color:var(--red);font-weight:700;text-align:center;margin-bottom:12px;';
+      banner.textContent = '⚠ ADMIN MODE — Saves update base defaults for all users';
+      const section = document.querySelector('.section');
+      if (section) section.insertBefore(banner, section.firstChild);
+    }
+    banner.style.display = 'block';
+  } else {
+    btn.style.background = 'var(--border)';
+    dot.style.left = '3px';
+    dot.style.background = '#8b949e';
+    if (header) header.style.borderBottom = '';
+    const banner = document.getElementById('admin-banner');
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+async function adminSaveHorseData(btn) {
+  if (btn) btn.textContent = 'Saving to base…';
+  try {
+    for (const h of horses) {
+      if (!h._sbId) continue;
+      await _sb.from('horses').update({
+        name: h.name,
+        trainer: h.trainer,
+        running_style: h.paceRole,
+        last_speed: h.lastSpeed,
+        prev_speed: h.speed2back,
+        dslr: h.dslr,
+        last_race_class: h.lastRaceClass || 'g3',
+        surf_adj: h.surfAdj,
+        trainer_adj: h.trainerAdj,
+        ignore_trend: h.ignoreTrend,
+        notes: h.notes
+      }).eq('id', h._sbId);
+    }
+    if (btn) { btn.textContent = '✓ Base Saved'; setTimeout(() => btn.textContent = 'Save Horse Data', 1800); }
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.textContent = '✗ Failed'; setTimeout(() => btn.textContent = 'Save Horse Data', 2000); }
+  }
+}
+
 </script>
 </head>
 <body>
@@ -212,6 +272,12 @@ async function restoreSelected() {
 
 <div class="header" style="position:relative;">
   <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:10px;">
+    <div id="admin-mode-toggle" style="display:none;align-items:center;gap:6px;">
+      <span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Admin</span>
+      <button id="admin-toggle-btn" onclick="toggleAdminMode()" style="background:var(--border);border:none;border-radius:12px;width:36px;height:20px;cursor:pointer;position:relative;transition:background 0.2s;" title="Toggle admin mode">
+        <span id="admin-toggle-dot" style="position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#8b949e;transition:all 0.2s;"></span>
+      </button>
+    </div>
     <span id="auth-user-label" style="font-size:11px;color:var(--muted);"></span>
     <button onclick="handleLogout()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Sign Out</button>
   </div>
@@ -1860,6 +1926,8 @@ const _sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
 let _currentProfileId = null;
 let _currentUser = null;
+let _isAdmin = false;
+let _adminMode = false;
 let _horseIdMap = {}; // name -> supabase uuid
 
 // Post positions and morning lines for the 2026 Preakness
@@ -2027,8 +2095,15 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     horses = built;
     nextId = horses.length + 1;
 
+    // Check if user is admin
+    const { data: profile } = await _sb.from('profiles').select('role').eq('id', userId).single();
+    _isAdmin = profile?.role === 'admin';
+
     document.getElementById('auth-loading').style.display = 'none';
     showApp(userEmail);
+    // Show admin toggle if applicable
+    const adminToggle = document.getElementById('admin-mode-toggle');
+    if (adminToggle) adminToggle.style.display = _isAdmin ? 'flex' : 'none';
     // Re-render inputs and compute model after DOM paint
     setTimeout(() => {
       try {
@@ -2404,6 +2479,7 @@ async function _getHandle() {
 
 async function saveHorseData() {
   const btn = document.getElementById('save-horses-btn');
+  if (_adminMode) { await adminSaveHorseData(btn); return; }
   const { data: { session } } = await _sb.auth.getSession();
   if (!session) { alert('Not signed in.'); return; }
   if (!_currentProfileId) { alert('No active race profile.'); return; }
