@@ -143,7 +143,7 @@ td input[type="text"] { width: 130px; }
     <input type="password" id="auth-password" placeholder="Password" onkeydown="if(event.key==='Enter')handleAuth()" style="width:100%;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:6px;font-size:13px;margin-bottom:16px;outline:none;">
     <button onclick="handleAuth()" id="auth-btn" style="width:100%;background:#238636;border:none;color:#fff;padding:10px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">Sign In</button>
     <div id="auth-error" style="color:#f85149;font-size:11px;margin-top:10px;min-height:16px;"></div>
-    <div id="auth-loading" style="display:none;color:#8b949e;font-size:11px;margin-top:10px;text-align:center;">Loading your race profile…</div>
+    <div id="auth-loading" style="display:none;color:#8b949e;font-size:11px;margin-top:10px;text-align:center;">Loading your race profile…<br><span id="auth-step" style="color:#4A90D9;font-size:10px;"></span></div>
   </div>
 </div>
 <!-- ─── MAIN APP (hidden until auth) ─────────────────────────────────────── -->
@@ -1859,17 +1859,23 @@ function showAuth() {
 
 // ─── LOAD HORSES FROM SUPABASE ─────────────────────────────────────────────
 async function loadHorsesFromSupabase(userId, userEmail) {
+  const setStep = s => { const el = document.getElementById('auth-step'); if(el) el.textContent = s; console.log('[load]', s); };
   document.getElementById('auth-loading').style.display = 'block';
   try {
+    setStep('connecting…');
     // 1. Get base horse data
+    setStep('fetching horses…');
     const { data: baseHorses, error: he } = await _sb.from('horses').select('*');
     if (he) throw he;
+    setStep(`got ${baseHorses?.length ?? 0} horses`);
 
     // 2. Get Laurel Park track id
-    const { data: tracks } = await _sb.from('tracks').select('id').eq('name','Laurel Park').single();
+    setStep('fetching track…');
+    const { data: tracks } = await _sb.from('tracks').select('id').eq('name','Laurel Park').maybeSingle();
     const trackId = tracks?.id;
 
     // 3. Get or create user's Preakness race profile
+    setStep('fetching profile…');
     let { data: profiles } = await _sb.from('race_profiles')
       .select('*').eq('user_id', userId).eq('name', '2026 Preakness Stakes');
     
@@ -1897,8 +1903,11 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     _currentProfileId = profileId;
 
     // 4. Fetch entries and overrides
+    setStep('fetching entries…');
     const { data: entries } = await _sb.from('race_entries').select('*').eq('profile_id', profileId);
+    setStep('fetching overrides…');
     const { data: overrides } = await _sb.from('horse_overrides').select('*').eq('profile_id', profileId);
+    setStep('building model…');
 
     const entryMap = {};
     entries?.forEach(e => { entryMap[e.horse_id] = e; });
