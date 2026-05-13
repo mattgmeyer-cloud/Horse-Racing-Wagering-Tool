@@ -133,129 +133,7 @@ td input[type="text"] { width: 130px; }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .ai-model-sel { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-size:11px; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-// ─── RESTORE DEFAULTS MODAL ───────────────────────────────────────────────
-async function openRestoreModal() {
-  if (!_currentProfileId) { alert('No active profile.'); return; }
-  // Fetch current overrides from Supabase
-  const { data: overrides } = await _sb.from('horse_overrides')
-    .select('id, horse_id').eq('profile_id', _currentProfileId);
-  
-  const list = document.getElementById('restore-list');
-  list.innerHTML = '';
-
-  if (!overrides?.length) {
-    list.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px 0;">No overrides found — all horses are at admin defaults.</div>';
-  } else {
-    // Build a map of horse_id -> name
-    const nameMap = {};
-    horses.forEach(h => { if (h._sbId) nameMap[h._sbId] = h.name; });
-
-    overrides.forEach(ov => {
-      const name = nameMap[ov.horse_id] || ov.horse_id;
-      const row = document.createElement('label');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--row);border-radius:5px;cursor:pointer;font-size:12px;color:var(--text);';
-      row.innerHTML = `<input type="checkbox" data-override-id="${ov.id}" data-horse-id="${ov.horse_id}" checked style="accent-color:var(--gold);width:14px;height:14px;"> ${name}`;
-      list.appendChild(row);
-    });
-  }
-
-  document.getElementById('restore-modal').style.display = 'flex';
-}
-
-function closeRestoreModal() {
-  document.getElementById('restore-modal').style.display = 'none';
-}
-
-function selectAllOverrides(checked) {
-  document.querySelectorAll('#restore-list input[type=checkbox]').forEach(cb => cb.checked = checked);
-}
-
-async function restoreSelected() {
-  const checked = [...document.querySelectorAll('#restore-list input[type=checkbox]:checked')];
-  if (!checked.length) { closeRestoreModal(); return; }
-
-  const restoreBtn = document.querySelector('#restore-modal button[onclick="restoreSelected()"]');
-  if (restoreBtn) restoreBtn.textContent = 'Restoring…';
-
-  const ids = checked.map(cb => cb.getAttribute('data-override-id'));
-  const { error } = await _sb.from('horse_overrides').delete().in('id', ids);
-  
-  if (error) { alert('Error restoring: ' + error.message); if (restoreBtn) restoreBtn.textContent = 'Restore Selected'; return; }
-  
-  closeRestoreModal();
-
-  // Reload horse data using stored user
-  if (_currentUser) {
-    _currentProfileId = null;
-    _loading = true;
-    try { await loadHorsesFromSupabase(_currentUser.id, _currentUser.email); }
-    finally { _loading = false; }
-  }
-}
-
-
-// ─── ADMIN MODE ────────────────────────────────────────────────────────────
-function toggleAdminMode() {
-  if (!_isAdmin) { document.getElementById('admin-toggle-btn').checked = false; return; }
-  _adminMode = document.getElementById('admin-toggle-btn').checked;
-  const header = document.querySelector('.header');
-  if (_adminMode) {
-    if (header) header.style.borderBottom = '2px solid #f85149';
-    // Show admin mode banner
-    let banner = document.getElementById('admin-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'admin-banner';
-      banner.style.cssText = 'background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 14px;font-size:11px;color:var(--red);font-weight:700;text-align:center;margin-bottom:12px;';
-      banner.textContent = '⚠ ADMIN MODE — Saves update base defaults for all users';
-      const section = document.querySelector('.section');
-      if (section) section.insertBefore(banner, section.firstChild);
-    }
-    banner.style.display = 'block';
-  } else {
-    if (header) header.style.borderBottom = '';
-    const banner = document.getElementById('admin-banner');
-    if (banner) banner.style.display = 'none';
-  }
-}
-
-async function adminSaveHorseData(btn) {
-  if (btn) btn.textContent = 'Saving to base…';
-  try {
-    for (const h of horses) {
-      if (!h._sbId) continue;
-      await _sb.from('horses').update({
-        name: h.name,
-        trainer: h.trainer,
-        running_style: h.paceRole,
-        last_speed: h.lastSpeed,
-        prev_speed: h.speed2back,
-        dslr: h.dslr,
-        last_race_class: h.lastRaceClass || 'g3',
-        surf_adj: h.surfAdj,
-        trainer_adj: h.trainerAdj,
-        ignore_trend: h.ignoreTrend,
-        notes: h.notes
-      }).eq('id', h._sbId);
-    }
-    // Save weights as new global defaults
-    const adminWeights = {};
-    ['speed','trend','dslr','pace','surf','trainer','class'].forEach(k => {
-      const el = document.getElementById('w-' + k);
-      if (el) adminWeights[k] = +el.value;
-    });
-    await _sb.from('app_settings').update({ default_weights: adminWeights, updated_at: new Date().toISOString() }).eq('id', 1);
-    await _sb.from('race_profiles').update({ weights: adminWeights }).eq('id', _currentProfileId);
-
-    if (btn) { btn.textContent = '✓ Base Saved'; setTimeout(() => btn.textContent = 'Save Horse Data', 1800); }
-  } catch(e) {
-    console.error(e);
-    if (btn) { btn.textContent = '✗ Failed'; setTimeout(() => btn.textContent = 'Save Horse Data', 2000); }
-  }
-}
-
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <!-- ─── AUTH OVERLAY ─────────────────────────────────────────────────────── -->
@@ -1927,6 +1805,127 @@ async function adminSaveHorseData(btn) {
 </div>
 
 <script>
+// ─── RESTORE DEFAULTS MODAL ───────────────────────────────────────────────
+async function openRestoreModal() {
+  if (!_currentProfileId) { alert('No active profile.'); return; }
+  // Fetch current overrides from Supabase
+  const { data: overrides } = await _sb.from('horse_overrides')
+    .select('id, horse_id').eq('profile_id', _currentProfileId);
+  
+  const list = document.getElementById('restore-list');
+  list.innerHTML = '';
+
+  if (!overrides?.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px 0;">No overrides found — all horses are at admin defaults.</div>';
+  } else {
+    // Build a map of horse_id -> name
+    const nameMap = {};
+    horses.forEach(h => { if (h._sbId) nameMap[h._sbId] = h.name; });
+
+    overrides.forEach(ov => {
+      const name = nameMap[ov.horse_id] || ov.horse_id;
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--row);border-radius:5px;cursor:pointer;font-size:12px;color:var(--text);';
+      row.innerHTML = `<input type="checkbox" data-override-id="${ov.id}" data-horse-id="${ov.horse_id}" checked style="accent-color:var(--gold);width:14px;height:14px;"> ${name}`;
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('restore-modal').style.display = 'flex';
+}
+
+function closeRestoreModal() {
+  document.getElementById('restore-modal').style.display = 'none';
+}
+
+function selectAllOverrides(checked) {
+  document.querySelectorAll('#restore-list input[type=checkbox]').forEach(cb => cb.checked = checked);
+}
+
+async function restoreSelected() {
+  const checked = [...document.querySelectorAll('#restore-list input[type=checkbox]:checked')];
+  if (!checked.length) { closeRestoreModal(); return; }
+
+  const restoreBtn = document.querySelector('#restore-modal button[onclick="restoreSelected()"]');
+  if (restoreBtn) restoreBtn.textContent = 'Restoring…';
+
+  const ids = checked.map(cb => cb.getAttribute('data-override-id'));
+  const { error } = await _sb.from('horse_overrides').delete().in('id', ids);
+  
+  if (error) { alert('Error restoring: ' + error.message); if (restoreBtn) restoreBtn.textContent = 'Restore Selected'; return; }
+  
+  closeRestoreModal();
+
+  // Reload horse data using stored user
+  if (_currentUser) {
+    _currentProfileId = null;
+    _loading = true;
+    try { await loadHorsesFromSupabase(_currentUser.id, _currentUser.email); }
+    finally { _loading = false; }
+  }
+}
+
+
+// ─── ADMIN MODE ────────────────────────────────────────────────────────────
+function toggleAdminMode() {
+  if (!_isAdmin) { document.getElementById('admin-toggle-btn').checked = false; return; }
+  _adminMode = document.getElementById('admin-toggle-btn').checked;
+  const header = document.querySelector('.header');
+  if (_adminMode) {
+    if (header) header.style.borderBottom = '2px solid #f85149';
+    // Show admin mode banner
+    let banner = document.getElementById('admin-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'admin-banner';
+      banner.style.cssText = 'background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 14px;font-size:11px;color:var(--red);font-weight:700;text-align:center;margin-bottom:12px;';
+      banner.textContent = '⚠ ADMIN MODE — Saves update base defaults for all users';
+      const section = document.querySelector('.section');
+      if (section) section.insertBefore(banner, section.firstChild);
+    }
+    banner.style.display = 'block';
+  } else {
+    if (header) header.style.borderBottom = '';
+    const banner = document.getElementById('admin-banner');
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+async function adminSaveHorseData(btn) {
+  if (btn) btn.textContent = 'Saving to base…';
+  try {
+    for (const h of horses) {
+      if (!h._sbId) continue;
+      await _sb.from('horses').update({
+        name: h.name,
+        trainer: h.trainer,
+        running_style: h.paceRole,
+        last_speed: h.lastSpeed,
+        prev_speed: h.speed2back,
+        dslr: h.dslr,
+        last_race_class: h.lastRaceClass || 'g3',
+        surf_adj: h.surfAdj,
+        trainer_adj: h.trainerAdj,
+        ignore_trend: h.ignoreTrend,
+        notes: h.notes
+      }).eq('id', h._sbId);
+    }
+    // Save weights as new global defaults
+    const adminWeights = {};
+    ['speed','trend','dslr','pace','surf','trainer','class'].forEach(k => {
+      const el = document.getElementById('w-' + k);
+      if (el) adminWeights[k] = +el.value;
+    });
+    await _sb.from('app_settings').update({ default_weights: adminWeights, updated_at: new Date().toISOString() }).eq('id', 1);
+    await _sb.from('race_profiles').update({ weights: adminWeights }).eq('id', _currentProfileId);
+
+    if (btn) { btn.textContent = '✓ Base Saved'; setTimeout(() => btn.textContent = 'Save Horse Data', 1800); }
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.textContent = '✗ Failed'; setTimeout(() => btn.textContent = 'Save Horse Data', 2000); }
+  }
+}
+
 // ─── SUPABASE ──────────────────────────────────────────────────────────────
 const SUPA_URL = 'https://nwbswsasqvynpugxhyly.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53YnN3c2FzcXZ5bnB1Z3hoeWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTYwMjEsImV4cCI6MjA5NDI3MjAyMX0.JH6QsNrmHzf70fPMOJwTZqtBzLaPueKGjBL17_-PbzU';
@@ -2115,10 +2114,8 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     nextId = horses.length + 1;
 
     // Check if user is admin
-    const { data: profile, error: profileErr } = await _sb.from('profiles').select('role').eq('id', userId).single();
-    console.log('[admin check] profile:', profile, 'error:', profileErr);
+    const { data: profile } = await _sb.from('profiles').select('role').eq('id', userId).single();
     _isAdmin = profile?.role === 'admin';
-    console.log('[admin check] _isAdmin set to:', _isAdmin);
 
     document.getElementById('auth-loading').style.display = 'none';
     showApp(userEmail);
