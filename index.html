@@ -1966,22 +1966,17 @@ async function loadHorsesFromSupabase(userId, userEmail) {
 // ─── AUTH STATE LISTENER ───────────────────────────────────────────────────
 let _loading = false;
 _sb.auth.onAuthStateChange(async (event, session) => {
-  // Skip INITIAL_SESSION — token may be mid-refresh; wait for TOKEN_REFRESHED or SIGNED_IN
-  if (event === 'INITIAL_SESSION') {
-    if (!session) showAuth();
-    // If session exists, TOKEN_REFRESHED will fire shortly and handle the load
-    // Fallback: if token isn't expired, TOKEN_REFRESHED won't fire, so load after short delay
+  // Only fire on explicit SIGNED_IN (user clicked Sign In).
+  // INITIAL_SESSION + TOKEN_REFRESHED fire automatically on page load — always show login screen.
+  if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
     if (session?.user) {
-      setTimeout(async () => {
-        if (_loading) return;
-        _loading = true;
-        try { await loadHorsesFromSupabase(session.user.id, session.user.email); }
-        finally { _loading = false; }
-      }, 500);
+      const emailEl = document.getElementById('auth-email');
+      if (emailEl && !emailEl.value) emailEl.value = session.user.email;
     }
+    showAuth();
     return;
   }
-  if (session?.user) {
+  if (event === 'SIGNED_IN' && session?.user) {
     if (_loading) return;
     _loading = true;
     try {
@@ -1989,7 +1984,9 @@ _sb.auth.onAuthStateChange(async (event, session) => {
     } finally {
       _loading = false;
     }
-  } else {
+    return;
+  }
+  if (event === 'SIGNED_OUT') {
     _loading = false;
     showAuth();
   }
