@@ -241,6 +241,15 @@ async function adminSaveHorseData(btn) {
         notes: h.notes
       }).eq('id', h._sbId);
     }
+    // Save weights as new global defaults
+    const adminWeights = {};
+    ['speed','trend','dslr','pace','surf','trainer','class'].forEach(k => {
+      const el = document.getElementById('w-' + k);
+      if (el) adminWeights[k] = +el.value;
+    });
+    await _sb.from('app_settings').update({ default_weights: adminWeights, updated_at: new Date().toISOString() }).eq('id', 1);
+    await _sb.from('race_profiles').update({ weights: adminWeights }).eq('id', _currentProfileId);
+
     if (btn) { btn.textContent = '✓ Base Saved'; setTimeout(() => btn.textContent = 'Save Horse Data', 1800); }
   } catch(e) {
     console.error(e);
@@ -2034,10 +2043,12 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     
     let profileId;
     if (!profiles?.length) {
-      // New user — create profile
+      // New user — fetch admin default weights for seeding
+      const { data: appSettings } = await _sb.from('app_settings').select('default_weights').single();
+      const defaultWeights = appSettings?.default_weights || {speed:25,trend:10,dslr:20,pace:25,surf:15,trainer:5,class:10};
       const { data: newProfile, error: pe } = await _sb.from('race_profiles')
         .insert({ user_id: userId, track_id: trackId, name: '2026 Preakness Stakes', scenario: 'meltdown',
-                  weights: {speed:25,trend:10,dslr:20,pace:25,surf:15,trainer:5,class:10} })
+                  weights: defaultWeights })
         .select().single();
       if (pe) throw pe;
       profileId = newProfile.id;
@@ -2052,6 +2063,15 @@ async function loadHorsesFromSupabase(userId, userEmail) {
       await _sb.from('race_entries').insert(entries);
     } else {
       profileId = profiles[0].id;
+      // Apply saved weights to UI inputs
+      const savedWeights = profiles[0].weights;
+      if (savedWeights) {
+        const wMap = {speed:'w-speed',trend:'w-trend',dslr:'w-dslr',pace:'w-pace',surf:'w-surf',trainer:'w-trainer',class:'w-class'};
+        Object.entries(wMap).forEach(([key, id]) => {
+          const el = document.getElementById(id);
+          if (el && savedWeights[key] !== undefined) el.value = savedWeights[key];
+        });
+      }
     }
     _currentProfileId = profileId;
 
@@ -2501,6 +2521,14 @@ async function saveHorseData() {
         .update({ post_position: h.post, act_odds: h.act })
         .eq('profile_id', _currentProfileId).eq('horse_id', h._sbId);
     }
+    // Also save current weights to user's race profile
+    const currentWeights = {};
+    ['speed','trend','dslr','pace','surf','trainer','class'].forEach(k => {
+      const el = document.getElementById('w-' + k);
+      if (el) currentWeights[k] = +el.value;
+    });
+    await _sb.from('race_profiles').update({ weights: currentWeights }).eq('id', _currentProfileId);
+
     if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>btn.textContent='Save Horse Data',1500); }
   } catch(e) {
     console.error(e);
