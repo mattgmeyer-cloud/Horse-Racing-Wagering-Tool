@@ -2115,8 +2115,10 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     nextId = horses.length + 1;
 
     // Check if user is admin
-    const { data: profile } = await _sb.from('profiles').select('role').eq('id', userId).single();
+    const { data: profile, error: profileErr } = await _sb.from('profiles').select('role').eq('id', userId).single();
+    console.log('[admin check] profile:', profile, 'error:', profileErr);
     _isAdmin = profile?.role === 'admin';
+    console.log('[admin check] _isAdmin set to:', _isAdmin);
 
     document.getElementById('auth-loading').style.display = 'none';
     showApp(userEmail);
