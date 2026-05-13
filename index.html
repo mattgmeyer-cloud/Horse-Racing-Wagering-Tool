@@ -169,18 +169,21 @@ async function restoreSelected() {
   const checked = [...document.querySelectorAll('#restore-list input[type=checkbox]:checked')];
   if (!checked.length) { closeRestoreModal(); return; }
 
+  const restoreBtn = document.querySelector('#restore-modal button[onclick="restoreSelected()"]');
+  if (restoreBtn) restoreBtn.textContent = 'Restoring…';
+
   const ids = checked.map(cb => cb.getAttribute('data-override-id'));
   const { error } = await _sb.from('horse_overrides').delete().in('id', ids);
   
-  if (error) { alert('Error restoring: ' + error.message); return; }
+  if (error) { alert('Error restoring: ' + error.message); if (restoreBtn) restoreBtn.textContent = 'Restore Selected'; return; }
   
   closeRestoreModal();
-  // Reload horse data to reflect restored defaults
-  const { data: { session } } = await _sb.auth.getSession();
-  if (session?.user) {
-    _currentProfileId = null; // force profile reload
+
+  // Reload horse data using stored user
+  if (_currentUser) {
+    _currentProfileId = null;
     _loading = true;
-    try { await loadHorsesFromSupabase(session.user.id, session.user.email); }
+    try { await loadHorsesFromSupabase(_currentUser.id, _currentUser.email); }
     finally { _loading = false; }
   }
 }
@@ -1856,6 +1859,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const _sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
 let _currentProfileId = null;
+let _currentUser = null;
 let _horseIdMap = {}; // name -> supabase uuid
 
 // Post positions and morning lines for the 2026 Preakness
@@ -1904,6 +1908,7 @@ async function handleAuth() {
   }
   const user = result.data?.user || result.data?.session?.user;
   if (user) {
+    _currentUser = user;
     if (!_loading) {
       _loading = true;
       try { await loadHorsesFromSupabase(user.id, user.email); }
