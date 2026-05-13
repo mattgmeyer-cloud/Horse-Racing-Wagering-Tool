@@ -127,7 +127,65 @@ td input[type="text"] { width: 130px; }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .ai-model-sel { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-size:11px; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+// ─── RESTORE DEFAULTS MODAL ───────────────────────────────────────────────
+async function openRestoreModal() {
+  if (!_currentProfileId) { alert('No active profile.'); return; }
+  // Fetch current overrides from Supabase
+  const { data: overrides } = await _sb.from('horse_overrides')
+    .select('id, horse_id').eq('profile_id', _currentProfileId);
+  
+  const list = document.getElementById('restore-list');
+  list.innerHTML = '';
+
+  if (!overrides?.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px 0;">No overrides found — all horses are at admin defaults.</div>';
+  } else {
+    // Build a map of horse_id -> name
+    const nameMap = {};
+    horses.forEach(h => { if (h._sbId) nameMap[h._sbId] = h.name; });
+
+    overrides.forEach(ov => {
+      const name = nameMap[ov.horse_id] || ov.horse_id;
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--row);border-radius:5px;cursor:pointer;font-size:12px;color:var(--text);';
+      row.innerHTML = `<input type="checkbox" data-override-id="${ov.id}" data-horse-id="${ov.horse_id}" checked style="accent-color:var(--gold);width:14px;height:14px;"> ${name}`;
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('restore-modal').style.display = 'flex';
+}
+
+function closeRestoreModal() {
+  document.getElementById('restore-modal').style.display = 'none';
+}
+
+function selectAllOverrides(checked) {
+  document.querySelectorAll('#restore-list input[type=checkbox]').forEach(cb => cb.checked = checked);
+}
+
+async function restoreSelected() {
+  const checked = [...document.querySelectorAll('#restore-list input[type=checkbox]:checked')];
+  if (!checked.length) { closeRestoreModal(); return; }
+
+  const ids = checked.map(cb => cb.getAttribute('data-override-id'));
+  const { error } = await _sb.from('horse_overrides').delete().in('id', ids);
+  
+  if (error) { alert('Error restoring: ' + error.message); return; }
+  
+  closeRestoreModal();
+  // Reload horse data to reflect restored defaults
+  const { data: { session } } = await _sb.auth.getSession();
+  if (session?.user) {
+    _currentProfileId = null; // force profile reload
+    _loading = true;
+    try { await loadHorsesFromSupabase(session.user.id, session.user.email); }
+    finally { _loading = false; }
+  }
+}
+
+</script>
 </head>
 <body>
 <!-- ─── AUTH OVERLAY ─────────────────────────────────────────────────────── -->
@@ -235,6 +293,7 @@ td input[type="text"] { width: 130px; }
 <div class="section">
   <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
     <span>Field — 14 Starters (posts drawn May 11) · Click ℹ for AI research notes</span>
+    <button onclick="openRestoreModal()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;margin-right:6px;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Restore Defaults</button>
     <button id="save-horses-btn" onclick="saveHorseData()" style="background: transparent; border-color: var(--green); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; color: var(--green); padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Save Horse Data</button>
   </div>
   <div class="note-box">
@@ -3086,5 +3145,20 @@ renderScenarioMods();
 </script>
 
 
+
+<!-- ─── RESTORE DEFAULTS MODAL ─────────────────────────────────────────── -->
+<div id="restore-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:8000;align-items:center;justify-content:center;">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:28px 28px 20px;width:420px;max-width:94%;max-height:80vh;overflow-y:auto;">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">Restore to Admin Defaults</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:18px;">Select horses to remove your overrides. Their data will revert to the base model values.</div>
+    <div id="restore-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="selectAllOverrides(true)" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;">All</button>
+      <button onclick="selectAllOverrides(false)" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:4px;font-size:11px;cursor:pointer;">None</button>
+      <button onclick="closeRestoreModal()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:4px;font-size:11px;cursor:pointer;">Cancel</button>
+      <button onclick="restoreSelected()" style="background:#d4a017;border:none;color:#000;padding:5px 14px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;">Restore Selected</button>
+    </div>
+  </div>
+</div>
 </div><!-- /main-app -->
 </body></html>
