@@ -1812,7 +1812,7 @@ td input[type="text"] { width: 130px; }
         <option value="claude-haiku-4-5-20251001">Haiku (fast)</option>
         <option value="claude-sonnet-4-6" selected="">Sonnet (best)</option>
       </select>
-      <button onclick="saveAPIKey()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;" onmouseover="this.style.borderColor='var(--purple)';this.style.color='var(--purple)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Save Key</button>
+
       <button id="ai-gen-btn" class="ai-plan-btn" onclick="generateAIPlan()">Generate ➜</button>
       <button onclick="copyPromptForClaude()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'" title="Copy the full analysis prompt to clipboard — paste into Claude">📋 Copy AI Prompt</button>
     </div>
@@ -3228,21 +3228,11 @@ function showAIPanel() {
   const panel = document.getElementById('ai-panel');
   panel.style.display = panel.style.display === 'none' ? '' : 'none';
   if (panel.style.display !== 'none') {
-    const saved = localStorage.getItem('anthropic_api_key');
-    if (saved) {
-      document.getElementById('ai-api-key').value = saved;
-      document.getElementById('ai-key-status').textContent = '✓ API key loaded from local storage';
-    }
     panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
   }
 }
 
-function saveAPIKey() {
-  const key = document.getElementById('ai-api-key').value.trim();
-  if (!key) return;
-  try { localStorage.setItem('anthropic_api_key', key); } catch(e) {}
-  document.getElementById('ai-key-status').textContent = '✓ Key saved to local storage';
-}
+
 
 function buildAIPrompt() {
   const results = lastResults.length ? lastResults : computeModel();
@@ -3317,14 +3307,13 @@ function copyPromptForClaude() {
 }
 
 async function generateAIPlan() {
-  const keyInput = document.getElementById('ai-api-key').value.trim();
-  const apiKey = keyInput || localStorage.getItem('anthropic_api_key');
+  const apiKey = document.getElementById('ai-api-key').value.trim();
   if (!apiKey) {
     document.getElementById('ai-key-status').textContent = '⚠ Enter your Anthropic API key above first.';
     document.getElementById('ai-api-key').focus();
     return;
   }
-  if (keyInput) { try { localStorage.setItem('anthropic_api_key', keyInput); } catch(e) {} }
+
 
   const model = document.getElementById('ai-model-sel').value;
   const btn = document.getElementById('ai-gen-btn');
