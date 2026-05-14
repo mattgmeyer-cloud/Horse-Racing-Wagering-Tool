@@ -2235,7 +2235,7 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     // Re-render inputs and compute model after DOM paint
     setTimeout(() => {
       try {
-        if (typeof renderInputTable === 'function') renderInputTable();
+        if (typeof renderHorseTable === 'function') renderHorseTable();
         if (typeof computeModel === 'function') computeModel();
       } catch(renderErr) {
         console.error('Render error:', renderErr);
