@@ -1798,6 +1798,10 @@ td input[type="text"] { width: 130px; }
       <label style="font-size:11px;color:var(--muted);">Custom $</label>
       <input type="number" id="custom-budget" value="200" min="50" max="2000" step="10" oninput="syncBudget()" style="width:80px">
     </div>
+    <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;">Spiciness:</span>
+    <button id="spice-boring" class="bud-btn" onclick="setSpice('boring')" title="2 win plays only">🥛 Bleeds Boring</button>
+    <button id="spice-adv" class="bud-btn on" onclick="setSpice('adventurous')" title="Win + Exacta plays">🌶 Adventurous</button>
+    <button id="spice-exotic" class="bud-btn" onclick="setSpice('exotic')" title="Full exotic spread">🔥 Exotic</button>
     <button class="gen-btn" onclick="generatePlan()">⚡ Generate Strike Plan</button>
     <button class="ai-plan-btn" onclick="showAIPanel()">🤖 AI Strike Plan</button>
   </div>
@@ -2939,6 +2943,15 @@ function legScore(h, leg) {
 const PACE_ROLE_COLORS = { front:'var(--gold)', tactical:'var(--green)', stalker:'var(--blue)', closer:'var(--red)' };
 function paceCol(role) { return PACE_ROLE_COLORS[role] || 'var(--text)'; }
 
+let _spice = 'adventurous';
+function setSpice(level) {
+  _spice = level;
+  ['boring','adv','exotic'].forEach(id => {
+    const btn = document.getElementById('spice-' + id);
+    if (btn) btn.classList.toggle('on', (id === 'boring' && level === 'boring') || (id === 'adv' && level === 'adventurous') || (id === 'exotic' && level === 'exotic'));
+  });
+}
+
 function setBudget(amt) {
   budget = amt;
   document.getElementById('custom-budget').value = amt;
@@ -3010,7 +3023,8 @@ function generatePlan() {
 
   // ── WIN / PLACE (edge-based — only bet straight when market undervalues) ──
   const winBudget = Math.round(b*winAlloc);
-  const winTargets = valueHorses.length>0 ? valueHorses.slice(0,2) : byValue.slice(0,2);
+  const maxWins = _spice === 'boring' ? 2 : 2;
+  const winTargets = valueHorses.length>0 ? valueHorses.slice(0,maxWins) : byValue.slice(0,maxWins);
   winTargets.forEach((h,i) => {
     const stake  = i===0 ? Math.round(winBudget*0.65/2)*2 : Math.round(winBudget*0.35/2)*2;
     bets.push({
@@ -3028,6 +3042,7 @@ function generatePlan() {
   });
 
   // ── EXACTA — alpha on top, leg-2 scored pool underneath ──────────────────
+  if (_spice !== 'boring') {
   const exBudget = Math.round(b*exAlloc);
   if (alpha1 && leg2posts.length) {
     const under = leg2posts.filter(p=>p!==alpha1.post);
@@ -3068,6 +3083,7 @@ function generatePlan() {
   }
 
   // ── TRIFECTA — alpha on top; leg-2 pool for 2nd; value-heavy pool for 3rd ─
+  if (_spice === 'exotic') {
   const triBudget = Math.round(b*triAlloc);
   if (alpha1 && leg2posts.length >= 2 && leg3posts.length >= 2) {
     const l2 = leg2posts.filter(p=>p!==alpha1.post);
@@ -3113,9 +3129,13 @@ function generatePlan() {
     }
   }
 
+  } // end non-boring exacta
+
+  } // end exotic trifecta
+
   // ── SUPERFECTA — alphas in 1st/2nd; value pool in 3rd; max-value in 4th ──
   const superBudget = Math.round(b*superAlloc);
-  if (superBudget >= 4 && b >= 150 && alpha1 && alpha2) {
+  if (_spice === 'exotic' && superBudget >= 4 && b >= 150 && alpha1 && alpha2) {
     const alphaPosts = [alpha1.post, alpha2.post].sort((a,b)=>a-b);
     const l3s = leg3posts.filter(p=>!alphaPosts.includes(p));
     const l4s = leg4posts.filter(p=>!alphaPosts.includes(p));
@@ -3282,9 +3302,9 @@ ${horseNotes}
 
 Build a strike plan that:
 1. Identifies your 2-3 primary horses and explains the thesis for each
-2. Recommends specific bets (win, exacta, trifecta, multi-race if applicable) with dollar amounts that fit within $${budget}
+2. ${_spice === 'boring' ? 'Recommends EXACTLY 2 Win bets only. No exactas, no exotics whatsoever. Keep it dead simple.' : _spice === 'adventurous' ? 'Recommends Win and Exacta bets only — no trifectas, no superfectas. Dollar amounts within budget.' : 'Recommends specific bets (win, exacta, trifecta, superfecta) with dollar amounts that fit within $${budget}'}
 3. Addresses the model-vs-market tension for the co-favorites
-4. Identifies the best longshot angles and how to use them in exotics
+4. ${_spice === 'boring' ? 'Explains the case for each of the 2 win plays — skip longshot talk.' : 'Identifies the best longshot angles and how to use them in exotics'}
 5. Names which horses to leave off the ticket entirely and why
 
 Be direct, opinionated, and specific. Use dollar amounts. Format with clear section headers.`;
