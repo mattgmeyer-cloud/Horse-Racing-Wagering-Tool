@@ -1943,7 +1943,9 @@ async function adminSaveHorseData(btn) {
 // ─── SUPABASE ──────────────────────────────────────────────────────────────
 const SUPA_URL = 'https://nwbswsasqvynpugxhyly.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53YnN3c2FzcXZ5bnB1Z3hoeWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTYwMjEsImV4cCI6MjA5NDI3MjAyMX0.JH6QsNrmHzf70fPMOJwTZqtBzLaPueKGjBL17_-PbzU';
-const _sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const _sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true }
+});
 
 let _currentProfileId = null;
 let _currentUser = null;
@@ -1992,9 +1994,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   sessionStorage.removeItem('oauth_pending');
   console.log('[oauth] return detected, code in URL:', !!code, 'flag:', !!oauthPending);
-  console.log('[oauth] full URL:', window.location.href);
-  console.log('[oauth] hash:', window.location.hash || '(empty)');
-  console.log('[oauth] search:', window.location.search || '(empty)');
+  console.log('[oauth] hash:', window.location.hash ? window.location.hash.substring(0,80)+'...' : '(empty)');
+
+  // If tokens are in the hash, set session directly — no need to wait for events
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const accessToken = hashParams.get('access_token');
+  const refreshToken = hashParams.get('refresh_token');
+  if (accessToken && refreshToken) {
+    console.log('[oauth] tokens found in hash — calling setSession directly');
+    window.history.replaceState({}, '', window.location.pathname);
+    const { data: sd, error: se } = await _sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    if (se || !sd?.session?.user) {
+      console.error('[oauth] setSession failed:', se);
+    } else {
+      console.log('[oauth] setSession success:', sd.session.user.email);
+      await finishOAuthLogin(sd.session.user);
+      return;
+    }
+  }
 
   // Show loading state immediately
   const loadEl = document.getElementById('auth-loading');
