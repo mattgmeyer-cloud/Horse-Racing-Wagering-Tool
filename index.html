@@ -818,14 +818,14 @@ td input[type="text"] { width: 130px; }
   <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
     <span>Model Weights</span>
     <span style="display:flex;align-items:center;gap:16px;">
-      <button id="save-defaults-btn" onclick="saveWeightDefaults()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Save as Default</button>
+      <button id="save-defaults-btn" onclick="saveWeightDefaults()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Save Model Weights</button>
+      <button onclick="restoreWeightDefaults()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Restore Defaults</button>
       <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0;">
         <input type="checkbox" id="zero-all-weights" onchange="toggleZeroWeights(this)" style="accent-color:var(--red);width:13px;height:13px;">
         set all to 1
       </label>
       <span style="font-size:12px;font-weight:700;">
-        Total: <span id="w-total-lbl" style="font-size: 14px; color: var(--red);">13%</span>
-        <span id="w-total-hint" style="font-size:10px;color:var(--muted);margin-left:6px;">weights are normalized — any total works</span>
+        Total: <span id="w-total-lbl" style="font-size: 14px; color: var(--gold);">110</span>
       </span>
     </span>
   </div>
@@ -2415,8 +2415,8 @@ function updateWeightLabels() {
   const rawTotal = s+tr+d+p+sf+t+cl;
   const lbl = document.getElementById('w-total-lbl');
   if (lbl) {
-    lbl.textContent = rawTotal + '%';
-    lbl.style.color = rawTotal === 100 ? 'var(--green)' : rawTotal < 85 || rawTotal > 115 ? 'var(--red)' : 'var(--gold)';
+    lbl.textContent = rawTotal;
+    lbl.style.color = 'var(--gold)';
   }
 }
 
@@ -2566,6 +2566,21 @@ function applyWeightDefaults() {
   document.getElementById('w-surf').value    = W_DEFAULTS.surf;
   document.getElementById('w-trainer').value = W_DEFAULTS.trainer;
   document.getElementById('w-class').value   = W_DEFAULTS.class||10;
+}
+
+const W_HARDCODED_DEFAULTS = {speed:25, trend:10, dslr:20, pace:25, surf:15, trainer:5, class:10};
+
+async function restoreWeightDefaults() {
+  const wMap = {speed:'w-speed',trend:'w-trend',dslr:'w-dslr',pace:'w-pace',surf:'w-surf',trainer:'w-trainer',class:'w-class'};
+  Object.entries(wMap).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = W_HARDCODED_DEFAULTS[key];
+  });
+  recalc();
+  // Persist restored defaults to Supabase
+  if (_currentProfileId) {
+    await _sb.from('race_profiles').update({ weights: W_HARDCODED_DEFAULTS }).eq('id', _currentProfileId);
+  }
 }
 
 async function saveWeightDefaults() {
