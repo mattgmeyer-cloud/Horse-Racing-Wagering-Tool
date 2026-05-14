@@ -2565,7 +2565,7 @@ function applyWeightDefaults() {
   document.getElementById('w-class').value   = W_DEFAULTS.class||10;
 }
 
-function saveWeightDefaults() {
+async function saveWeightDefaults() {
   W_DEFAULTS = {
     speed:   +document.getElementById('w-speed').value,
     trend:   +document.getElementById('w-trend').value,
@@ -2576,6 +2576,11 @@ function saveWeightDefaults() {
     class:   +document.getElementById('w-class').value,
   };
   try { localStorage.setItem('preakness_w_defaults', JSON.stringify(W_DEFAULTS)); } catch(e) {}
+  // Also persist to Supabase so weights survive sign-out/sign-in
+  if (_currentProfileId) {
+    const { error } = await _sb.from('race_profiles').update({ weights: W_DEFAULTS }).eq('id', _currentProfileId);
+    if (error) console.error('weight save to Supabase error:', error);
+  }
   const btn = document.getElementById('save-defaults-btn');
   if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>btn.textContent='Save as Default',1500); }
 }
