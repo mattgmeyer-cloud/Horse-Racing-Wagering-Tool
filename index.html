@@ -3304,7 +3304,7 @@ function buildAIPrompt() {
     const edge = h.edgePct.toFixed(0);
     const edgeStr = h.edgePct > 0 ? `+${edge}%` : `${edge}%`;
     const cls = CLASS_LABELS[h.lastRaceClass||'g3']||'G3';
-    return `  Post ${h.post} | ${h.name.padEnd(18)} | ${h.paceRole.padEnd(8)} | ${h.lastSpeed} | ${trendStr.padStart(4)} | ${h.dslr}d | ${cls.padEnd(6)} | ${(h.winProb*100).toFixed(1)}% | ${((1/h.winProb)-1).toFixed(1)}-1 fair | ML ${h.ml}-1 | Edge ${edgeStr}`;
+    return `  Post ${h.post} | ${h.name.padEnd(18)} | ${h.paceRole.padEnd(8)} | ${h.lastSpeed} | ${trendStr.padStart(4)} | ${h.dslr}d | ${cls.padEnd(6)} | ${(h.winProb*100).toFixed(1)}% | ${((1/h.winProb)-1).toFixed(1)}-1 fair | ML ${h.ml}-1 | Act ${h.act ? h.act.toFixed(1)+'-1' : '—'} | Edge ${edgeStr}`;
   }).join('\n');
 
   const topValue = byProb.filter(h => h.edgePct > 10).map(h => `${h.name} (${h.edgePct.toFixed(0)}% edge at ${h.ml}-1)`).join(', ') || 'none with >10% edge';
@@ -3369,9 +3369,11 @@ Build a strike plan that:
 2. ${betInstruction}
 3. Addresses the model-vs-market tension for the top contenders
 4. ${longshotLine}
-5. Names which horses to leave off the ticket entirely and why
+${_spice !== 'boring' ? "5. Don't completely fade all market favorites — include at least one top-3 ML horse with minimal exotic coverage (a small exacta key or trifecta slot) even if the model has negative edge on them." : ''}
+${_spice !== 'boring' ? '6.' : '5.'} Names which horses to leave off the ticket entirely and why
+7. For every recommended bet, include a brief estimated payout range using the horse's actual tote odds if set (Act column), otherwise use morning-line odds
 
-Be direct, opinionated, and specific. Use dollar amounts. Format with clear section headers.`;
+Be direct, opinionated, and specific. Use dollar amounts. Format with clear section headers.\`;
 }
 
 function copyPromptForClaude() {
