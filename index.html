@@ -1982,6 +1982,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const code = params.get('code');
   if (!code) return;
 
+  console.log('[oauth] code detected in URL');
+
   // Show loading state immediately
   const loadEl = document.getElementById('auth-loading');
   const stepEl = document.getElementById('auth-step');
@@ -1993,6 +1995,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.history.replaceState({}, '', window.location.pathname);
 
   async function finishOAuthLogin(user) {
+    console.log('[oauth] finishOAuthLogin called for', user.email);
     _currentUser = user;
     _loading = true;
     try {
@@ -2001,7 +2004,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         user.email || (user.user_metadata && user.user_metadata.email)
       );
     } catch(err) {
-      console.error('OAuth loadHorses error:', err);
+      console.error('[oauth] loadHorses error:', err);
       if (loadEl) loadEl.style.display = 'none';
       if (errEl) errEl.textContent = 'Sign-in error: ' + (err.message || String(err));
     } finally {
@@ -2009,17 +2012,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // The Supabase client may have already exchanged the code before DOMContentLoaded.
-  // Check getSession() first as the fast path.
-  const { data: existing } = await _sb.auth.getSession();
+  // Check if Supabase client already exchanged the code
+  const { data: existing, error: sessionErr } = await _sb.auth.getSession();
+  console.log('[oauth] getSession result:', existing?.session?.user?.email || 'no session', sessionErr || '');
   if (existing && existing.session && existing.session.user) {
     await finishOAuthLogin(existing.session.user);
     return;
   }
 
-  // If not yet ready, wait for onAuthStateChange (code exchange still in flight).
+  // Fall back to onAuthStateChange
+  console.log('[oauth] waiting for onAuthStateChange...');
   let _handled = false;
   const { data: { subscription } } = _sb.auth.onAuthStateChange(async (event, session) => {
+    console.log('[oauth] authStateChange event:', event, session?.user?.email || 'no user');
     if (_handled) return;
     if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
       _handled = true;
