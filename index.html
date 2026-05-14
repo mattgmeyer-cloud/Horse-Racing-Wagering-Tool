@@ -1971,20 +1971,27 @@ let _authMode = 'signin';
 async function signInWithGoogle() {
   const errEl = document.getElementById('auth-error');
   if (errEl) errEl.textContent = '';
+  // Flag so we know to auto-load on return (survives redirect, cleared on success)
+  sessionStorage.setItem('oauth_pending', '1');
   const { error } = await _sb.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.href.split('?')[0].split('#')[0] }
   });
-  if (error) { if (errEl) errEl.textContent = error.message; }
+  if (error) {
+    sessionStorage.removeItem('oauth_pending');
+    if (errEl) errEl.textContent = error.message;
+  }
 }
 
 // Handle return from Google OAuth redirect — called on page load
 document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
-  if (!code) return;
+  const oauthPending = sessionStorage.getItem('oauth_pending');
+  if (!code && !oauthPending) return;
 
-  console.log('[oauth] code detected in URL');
+  sessionStorage.removeItem('oauth_pending');
+  console.log('[oauth] return detected, code in URL:', !!code, 'flag:', !!oauthPending);
 
   // Show loading state immediately
   const loadEl = document.getElementById('auth-loading');
