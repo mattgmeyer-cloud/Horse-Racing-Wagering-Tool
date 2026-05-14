@@ -2191,6 +2191,18 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     }
     _currentProfileId = profileId;
 
+    // Populate _raceInfo from DB profile + track data
+    const profileName = (profiles?.length ? profiles[0].name : null) || '2026 Preakness Stakes';
+    const trackName = 'Laurel Park'; // hardcoded since we query by name above
+    _raceInfo = {
+      name: profileName,
+      grade: 'G1',
+      track: trackName,
+      location: 'Baltimore, MD',
+      distance: '1 3/16 miles dirt',
+      date: 'May 16, 2026'
+    };
+
     // 4. Fetch entries and overrides
     setStep('fetching entries…');
     const { data: entries } = await _sb.from('race_entries').select('*').eq('profile_id', profileId);
@@ -2349,6 +2361,16 @@ let horses = [
 
 let budget = 200;
 let nextId = 14;
+
+// ─── RACE INFO (populated from DB on load; used in AI prompt) ───────────────
+let _raceInfo = {
+  name: '',       // e.g. "2026 Preakness Stakes"
+  grade: '',      // e.g. "G1"
+  track: '',      // e.g. "Laurel Park"
+  location: '',   // e.g. "Baltimore, MD"
+  distance: '',   // e.g. "1 3/16 miles dirt"
+  date: ''        // e.g. "May 16, 2026"
+};
 let sortCol = 'winProb';  // default sort: win probability
 let sortDir = -1;         // -1 = descending, 1 = ascending
 let lastResults = [];     // cache last computed results for re-sorting without recompute
@@ -3298,9 +3320,37 @@ function buildAIPrompt() {
     return notes ? `- ${h.name} (Post ${h.post}): ${notes}` : null;
   }).filter(Boolean).join('\n');
 
-  return `You are an expert thoroughbred handicapper. Build an intelligent, narrative betting strike plan for the 2026 Preakness Stakes.
+  // Build the race header line dynamically from _raceInfo
+  const raceParts = [
+    _raceInfo.name,
+    _raceInfo.grade,
+    _raceInfo.track,
+    _raceInfo.location,
+    _raceInfo.distance,
+    _raceInfo.date
+  ].filter(Boolean);
+  const raceLine = raceParts.join(' | ');
 
-RACE: 2026 Preakness Stakes G1 | Laurel Park, MD | 1 3/16 miles dirt | May 16, 2026
+  // Front-runner pace note
+  const frontRunnerNote = frontRunners
+    ? `Front-runners (${frontRunners}) — pace scenario: ${scenario}`
+    : `No dominant front-runners identified — pace scenario: ${scenario}`;
+
+  // Bet instruction based on spice level (extracted as variable so template interpolation works)
+  const exoticInstruction = `Recommends specific bets (win, exacta, trifecta, superfecta) with dollar amounts that fit within $${budget}`;
+  const betInstruction = _spice === 'boring'
+    ? 'Recommends EXACTLY 2 Win bets only. No exactas, no exotics whatsoever. Keep it dead simple.'
+    : _spice === 'adventurous'
+      ? 'Recommends Win and Exacta bets only — no trifectas, no superfectas. Dollar amounts within budget.'
+      : exoticInstruction;
+
+  const longshotLine = _spice === 'boring'
+    ? 'Explains the case for each of the 2 win plays — skip longshot talk.'
+    : 'Identifies the best longshot angles and how to use them in exotics';
+
+  return `You are an expert thoroughbred handicapper. Build an intelligent, narrative betting strike plan.
+
+RACE: ${raceLine}
 PACE SCENARIO: ${scenario}
 TRACK CONDITION: ${track}
 BUDGET: $${budget}
@@ -3310,15 +3360,15 @@ MODEL OUTPUT (sorted by win probability):
 ${tableRows}
 
 KEY CONTEXT:
-- Front-runners (${frontRunners}) — crowded pace, meltdown scenario very plausible
+- ${frontRunnerNote}
 - Class adjustment applied: G1/G2/G3 last race = face value; Allow = −1; OC/SOC = −3; Claim = −4
 ${horseNotes}
 
 Build a strike plan that:
 1. Identifies your 2-3 primary horses and explains the thesis for each
-2. ${_spice === 'boring' ? 'Recommends EXACTLY 2 Win bets only. No exactas, no exotics whatsoever. Keep it dead simple.' : _spice === 'adventurous' ? 'Recommends Win and Exacta bets only — no trifectas, no superfectas. Dollar amounts within budget.' : 'Recommends specific bets (win, exacta, trifecta, superfecta) with dollar amounts that fit within $${budget}'}
-3. Addresses the model-vs-market tension for the co-favorites
-4. ${_spice === 'boring' ? 'Explains the case for each of the 2 win plays — skip longshot talk.' : 'Identifies the best longshot angles and how to use them in exotics'}
+2. ${betInstruction}
+3. Addresses the model-vs-market tension for the top contenders
+4. ${longshotLine}
 5. Names which horses to leave off the ticket entirely and why
 
 Be direct, opinionated, and specific. Use dollar amounts. Format with clear section headers.`;
