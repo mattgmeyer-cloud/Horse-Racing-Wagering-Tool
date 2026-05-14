@@ -1992,6 +1992,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   sessionStorage.removeItem('oauth_pending');
   console.log('[oauth] return detected, code in URL:', !!code, 'flag:', !!oauthPending);
+  console.log('[oauth] full URL:', window.location.href);
+  console.log('[oauth] hash:', window.location.hash || '(empty)');
+  console.log('[oauth] search:', window.location.search || '(empty)');
 
   // Show loading state immediately
   const loadEl = document.getElementById('auth-loading');
@@ -2021,26 +2024,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Check if Supabase client already exchanged the code
-  const { data: existing, error: sessionErr } = await _sb.auth.getSession();
-  console.log('[oauth] getSession result:', existing?.session?.user?.email || 'no session', sessionErr || '');
-  if (existing && existing.session && existing.session.user) {
-    await finishOAuthLogin(existing.session.user);
-    return;
-  }
-
-  // Fall back to onAuthStateChange
-  console.log('[oauth] waiting for onAuthStateChange...');
+  // Set up listener FIRST before any async calls so we can't miss a fast-firing event
   let _handled = false;
+  console.log('[oauth] setting up onAuthStateChange listener...');
   const { data: { subscription } } = _sb.auth.onAuthStateChange(async (event, session) => {
     console.log('[oauth] authStateChange event:', event, session?.user?.email || 'no user');
     if (_handled) return;
-    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
+    if (event === 'SIGNED_IN' && session && session.user) {
       _handled = true;
       subscription.unsubscribe();
       await finishOAuthLogin(session.user);
     }
   });
+
+  // Also check immediately — client may have already processed the session
+  const { data: existing, error: sessionErr } = await _sb.auth.getSession();
+  console.log('[oauth] getSession result:', existing?.session?.user?.email || 'no session', sessionErr || '');
+  if (existing && existing.session && existing.session.user && !_handled) {
+    _handled = true;
+    subscription.unsubscribe();
+    await finishOAuthLogin(existing.session.user);
+  }
 });
 function setAuthMode(mode) {
   _authMode = mode;
