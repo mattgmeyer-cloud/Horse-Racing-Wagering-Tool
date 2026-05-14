@@ -1948,6 +1948,7 @@ const _sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
 });
 
 let _currentProfileId = null;
+let _baseHorseValues = {}; // sbId -> base values from horses table
 let _currentUser = null;
 let _isAdmin = false;
 let _adminMode = false;
@@ -2196,6 +2197,15 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     overrides?.forEach(o => { ovMap[o.horse_id] = o; });
 
     // 5. Build horses array (sorted by post position)
+    // Store base values so save can detect which horses actually changed
+    _baseHorseValues = {};
+    baseHorses.forEach(h => {
+      _baseHorseValues[h.id] = {
+        last_speed: h.last_speed, prev_speed: h.prev_speed, dslr: h.dslr,
+        ignore_trend: h.ignore_trend ?? false, last_race_class: h.last_race_class ?? 'g3'
+      };
+    });
+
     _horseIdMap = {};
     const built = baseHorses.map((h, i) => {
       _horseIdMap[h.name] = h.id;
@@ -2615,16 +2625,33 @@ async function saveHorseData() {
     let firstError = null;
     for (const h of horses) {
       if (!h._sbId) continue;
-      // Upsert override row
-      const { error: ovErr } = await _sb.from('horse_overrides').upsert({
-        profile_id: _currentProfileId, horse_id: h._sbId,
-        ignore_trend: h.ignoreTrend,
-        last_speed: h.lastSpeed,
-        prev_speed: h.speed2back,
-        dslr: h.dslr,
-        last_race_class: h.lastRaceClass || 'g3'
-      }, { onConflict: 'profile_id,horse_id' });
-      if (ovErr && !firstError) { firstError = 'override upsert: ' + ovErr.message; console.error('override upsert error', h.name, ovErr); }
+      const base = _baseHorseValues[h._sbId] || {};
+      const changed = (
+        h.ignoreTrend     !== (base.ignore_trend    ?? false)  ||
+        h.lastSpeed       !== (base.last_speed       ?? h.lastSpeed) ||
+        h.speed2back      !== (base.prev_speed       ?? h.speed2back) ||
+        h.dslr            !== (base.dslr             ?? h.dslr) ||
+        (h.lastRaceClass||'g3') !== (base.last_race_class ?? 'g3')
+      );
+
+      if (changed) {
+        // Upsert override row — horse differs from base
+        const { error: ovErr } = await _sb.from('horse_overrides').upsert({
+          profile_id: _currentProfileId, horse_id: h._sbId,
+          ignore_trend: h.ignoreTrend,
+          last_speed: h.lastSpeed,
+          prev_speed: h.speed2back,
+          dslr: h.dslr,
+          last_race_class: h.lastRaceClass || 'g3'
+        }, { onConflict: 'profile_id,horse_id' });
+        if (ovErr && !firstError) { firstError = 'override upsert: ' + ovErr.message; console.error('override upsert error', h.name, ovErr); }
+      } else {
+        // Horse matches base — delete override row if one exists
+        const { error: delErr } = await _sb.from('horse_overrides')
+          .delete().eq('profile_id', _currentProfileId).eq('horse_id', h._sbId);
+        if (delErr) console.warn('override delete error', h.name, delErr);
+      }
+
       // Update race entry (post position, actual odds)
       const { error: entErr } = await _sb.from('race_entries')
         .update({ post_position: h.post, act_odds: h.act })
