@@ -1791,7 +1791,7 @@ td input[type="text"] { width: 130px; }
   <div class="section-title">Strike Plan Generator</div>
   <div class="budget-bar">
     <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Budget:</span>
-    <button class="bud-btn" onclick="setBudget(120)">$120</button>
+    <button class="bud-btn" onclick="setBudget(100)">$100</button>
     <button class="bud-btn on" onclick="setBudget(200)">$200</button>
     <button class="bud-btn" onclick="setBudget(300)">$300</button>
     <div style="display:flex;align-items:center;gap:6px;">
@@ -2797,7 +2797,7 @@ function renderOutputTable(results) {
           <div style="width:${w}px;height:6px;background:${col};border-radius:3px"></div>
         </div>
         <span style="font-size:10px;font-weight:700;color:${col};width:38px;font-family:monospace">${c.val>0?'+':''}${c.val.toFixed(2)}</span>
-        <span style="font-size:10px;color:var(--muted)">${c.detail}</span>
+        <span style="font-size:10px;color:var(--text);opacity:0.75">${c.detail}</span>
       </div>`;
     }).join('');
 
@@ -2840,7 +2840,7 @@ function renderOutputTable(results) {
           <div style="margin-bottom:4px;">Fair odds: <b style="color:var(--text)">${fairStr}</b></div>
           <div>Edge vs ML: <b style="color:${edgeColor}">${h.edgePct>0?'+':''}${h.edgePct.toFixed(1)}%</b></div>
         </div>
-        ${h.notes ? `<div style="flex:1;min-width:220px;max-width:520px;font-size:11px;color:var(--muted);line-height:1.5;padding-top:2px;border-left:2px solid var(--border);padding-left:16px;">${h.notes}</div>` : ''}
+        ${h.notes ? `<div style="flex:1;min-width:220px;max-width:520px;font-size:11px;color:var(--text);line-height:1.5;padding-top:2px;border-left:2px solid var(--border);padding-left:16px;">${h.notes}</div>` : ''}
       </div>
     </td>`;
     tbody.appendChild(detailTr);
