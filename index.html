@@ -2265,7 +2265,7 @@ async function loadHorsesFromSupabase(userId, userEmail) {
     setTimeout(() => {
       try {
         if (typeof renderHorseTable === 'function') renderHorseTable();
-        if (typeof computeModel === 'function') computeModel();
+        if (typeof recalc === 'function') recalc();
       } catch(renderErr) {
         console.error('Render error:', renderErr);
       }
