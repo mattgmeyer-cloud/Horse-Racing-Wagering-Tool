@@ -3016,17 +3016,30 @@ function generatePlan() {
   const bets = [];
   let totalCost = 0;
   const b = budget;
-  const winAlloc   = b<=150?0.35:b<=250?0.30:0.25;
-  const exAlloc    = b<=150?0.28:0.27;
-  const triAlloc   = b<=150?0.27:0.28;
-  const superAlloc = b<=150?0.10:b<=250?0.13:0.20;
+
+  // ── SPICE-AWARE ALLOCATION ────────────────────────────────────────────────
+  // Distribute the full budget only across bet types that will actually be placed.
+  let winAlloc, exAlloc, triAlloc, superAlloc;
+  if (_spice === 'boring') {
+    winAlloc = 1.0; exAlloc = 0; triAlloc = 0; superAlloc = 0;
+  } else if (_spice === 'adventurous') {
+    winAlloc = 0.40; exAlloc = 0.60; triAlloc = 0; superAlloc = 0;
+  } else {
+    // exotic — full spread, scaled by budget size
+    winAlloc   = b<=150 ? 0.30 : b<=250 ? 0.25 : 0.20;
+    exAlloc    = b<=150 ? 0.28 : 0.27;
+    triAlloc   = b<=150 ? 0.28 : 0.30;
+    superAlloc = b<=150 ? 0.14 : b<=250 ? 0.18 : 0.23;
+  }
 
   // ── WIN / PLACE (edge-based — only bet straight when market undervalues) ──
-  const winBudget = Math.round(b*winAlloc);
-  const maxWins = _spice === 'boring' ? 2 : 2;
-  const winTargets = valueHorses.length>0 ? valueHorses.slice(0,maxWins) : byValue.slice(0,maxWins);
+  const winBudget = Math.round(b * winAlloc);
+  const winTargets = valueHorses.length>0 ? valueHorses.slice(0,2) : byValue.slice(0,2);
   winTargets.forEach((h,i) => {
-    const stake  = i===0 ? Math.round(winBudget*0.65/2)*2 : Math.round(winBudget*0.35/2)*2;
+    // boring: split 60/40; others: split 65/35
+    const splitA = _spice === 'boring' ? 0.60 : 0.65;
+    const splitB = _spice === 'boring' ? 0.40 : 0.35;
+    const stake  = i===0 ? Math.round(winBudget*splitA/2)*2 : Math.round(winBudget*splitB/2)*2;
     bets.push({
       type: i===0 ? 'Win — Primary Value Play' : 'Win — Secondary Value Play',
       struct:`#${h.post} ${h.name.toUpperCase()} · $${stake} Win`,
@@ -3043,10 +3056,11 @@ function generatePlan() {
 
   // ── EXACTA — alpha on top, leg-2 scored pool underneath ──────────────────
   if (_spice !== 'boring') {
-  const exBudget = Math.round(b*exAlloc);
+  const exBudget = Math.round(b * exAlloc);
   if (alpha1 && leg2posts.length) {
     const under = leg2posts.filter(p=>p!==alpha1.post);
-    const keyUnit = Math.max(2, Math.floor(exBudget*0.60/under.length));
+    const primaryShare = _spice === 'adventurous' ? 0.70 : 0.60;
+    const keyUnit = Math.max(2, Math.floor(exBudget*primaryShare/under.length));
     const keyCost = keyUnit * under.length;
     const suppressed = suppressors.filter(h=>under.includes(h.post));
     const suppNote = suppressed.length ? ` ⚠ Includes ${suppressed.map(h=>h.name).join(', ')} (payout suppressor — high prob, negative edge; in here for coverage only).` : '';
@@ -3084,7 +3098,7 @@ function generatePlan() {
 
   // ── TRIFECTA — alpha on top; leg-2 pool for 2nd; value-heavy pool for 3rd ─
   if (_spice === 'exotic') {
-  const triBudget = Math.round(b*triAlloc);
+  const triBudget = Math.round(b * triAlloc);
   if (alpha1 && leg2posts.length >= 2 && leg3posts.length >= 2) {
     const l2 = leg2posts.filter(p=>p!==alpha1.post);
     const l3 = leg3posts.filter(p=>p!==alpha1.post);
@@ -3134,7 +3148,7 @@ function generatePlan() {
   } // end exotic trifecta
 
   // ── SUPERFECTA — alphas in 1st/2nd; value pool in 3rd; max-value in 4th ──
-  const superBudget = Math.round(b*superAlloc);
+  const superBudget = Math.round(b * superAlloc);
   if (_spice === 'exotic' && superBudget >= 4 && b >= 150 && alpha1 && alpha2) {
     const alphaPosts = [alpha1.post, alpha2.post].sort((a,b)=>a-b);
     const l3s = leg3posts.filter(p=>!alphaPosts.includes(p));
