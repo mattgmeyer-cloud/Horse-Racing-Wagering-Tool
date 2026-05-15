@@ -2730,15 +2730,26 @@ async function fetchLiveOdds() {
   // Debug panel — insert after the Live Odds button's parent title row
   let dbg = document.getElementById('live-odds-debug');
   if (!dbg) {
+    const wrapper = document.createElement('div');
+    wrapper.id = 'live-odds-debug-wrap';
+    wrapper.style.cssText = 'position:relative;margin:8px 0 0 0;';
     dbg = document.createElement('div');
     dbg.id = 'live-odds-debug';
-    dbg.style.cssText = 'margin:8px 0 0 0;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace;color:var(--muted);white-space:pre-wrap;max-height:200px;overflow-y:auto;';
-    // Insert right after the section-title div that contains the Live Odds button
+    dbg.style.cssText = 'padding:8px 32px 8px 12px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace;color:var(--muted);white-space:pre-wrap;max-height:200px;overflow-y:auto;';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.title = 'Close debug panel';
+    closeBtn.style.cssText = 'position:absolute;top:6px;right:8px;background:transparent;border:none;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;';
+    closeBtn.onclick = () => { wrapper.style.display = 'none'; };
+    wrapper.appendChild(dbg);
+    wrapper.appendChild(closeBtn);
     const liveBtn2 = document.getElementById('live-odds-btn');
     const titleRow = liveBtn2 && liveBtn2.closest('.section-title');
-    if (titleRow) titleRow.insertAdjacentElement('afterend', dbg);
-    else document.body.appendChild(dbg); // fallback
+    if (titleRow) titleRow.insertAdjacentElement('afterend', wrapper);
+    else document.body.appendChild(wrapper);
   }
+  const wrap = document.getElementById('live-odds-debug-wrap');
+  if (wrap) wrap.style.display = '';
   dbg.style.display = 'block';
   dbg.textContent = 'Calling Edge Function…';
 
@@ -2764,33 +2775,13 @@ async function fetchLiveOdds() {
 
     const { parsed = [], updated = [], dbError, raw_preview, url, oddsType = 'unknown', source: srcName = '' } = data;
 
-    // Update in-memory horses array and DOM inputs
-    let matched = 0;
+    // Update in-memory horses array from DB results, then re-render everything
     for (const item of updated) {
-      // Find horse in horses array by post position
       const h = horses.find(x => x.post === item.post);
-      if (h) {
-        h.act = item.odds;
-        matched++;
-        // Update the corresponding Act. input in the DOM
-        // Inputs are identified by their onchange attr containing updateHorse(idx,'act'
-        const allInputs = document.querySelectorAll('input[type=number]');
-        for (const inp of allInputs) {
-          const oc = inp.getAttribute('onchange') || '';
-          if (oc.includes("'act'")) {
-            // Find the row for this horse by scanning nearby name input
-            const row = inp.closest('tr');
-            if (row) {
-              const nameInput = row.querySelector('input[type=text]');
-              if (nameInput && nameInput.value.trim().toLowerCase() === h.name.toLowerCase()) {
-                inp.value = item.odds;
-                break;
-              }
-            }
-          }
-        }
-      }
+      if (h) h.act = item.odds != null ? parseFloat(parseFloat(item.odds).toFixed(1)) : null;
     }
+    if (typeof renderHorseTable === 'function') renderHorseTable();
+    if (typeof recalc === 'function') recalc();
 
     // Build debug summary
     const oddsLabel = oddsType === 'live-tote' ? '🟢 LIVE TOTE' : oddsType === 'morning-line' ? '🟡 Morning Line (ML)' : oddsType;
