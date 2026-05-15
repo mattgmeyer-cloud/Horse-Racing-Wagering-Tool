@@ -52,7 +52,7 @@ select, input[type="number"], input[type="text"] { background: var(--bg); border
 input[type="range"] { accent-color: var(--gold); width: 100%; }
 .wt-desc { font-size: 10px; color: var(--muted); font-style: italic; }
 
-.tbl-wrap { overflow-x: auto; }
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; padding: 7px 8px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: 5px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); vertical-align: middle; }
@@ -122,11 +122,35 @@ td input[type="text"] { width: 130px; }
 .tier-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .tier-card { background: var(--row); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; font-size: 11px; }
 
+.facts-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+
 @media (max-width: 700px) { .weights-grid { grid-template-columns: 1fr 1fr; } }
+
+@media (max-width: 540px) {
+  body { padding: 10px; }
+  .section { padding: 12px 10px; }
+  .header h1 { font-size: 16px; letter-spacing: 1px; }
+  .weights-grid { grid-template-columns: 1fr; }
+  .facts-grid { grid-template-columns: 1fr; }
+  .bet-grid { grid-template-columns: 1fr; }
+  .controls { gap: 10px; }
+  .ctrl { width: 100%; }
+  .ctrl select { width: 100%; max-width: 100%; box-sizing: border-box; }
+  .ctrl label { white-space: normal; }
+  .budget-bar { gap: 6px; }
+  .bud-btn { padding: 5px 8px; font-size: 10px; }
+  .gen-btn { width: 100%; margin-top: 2px; }
+  .ai-plan-btn { width: 100%; }
+  .ai-key-row { flex-direction: column; align-items: stretch; }
+  .ai-key-row input[type="password"] { min-width: unset; width: 100%; }
+  .section-title { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .dslr-key { gap: 6px; }
+  .tier-summary { gap: 4px; }
+}
 
 /* AI Strike Plan */
 .ai-key-row { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
-.ai-key-row input[type="password"] { flex:1; min-width:220px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:4px; font-size:12px; font-family:monospace; }
+.ai-key-row input[type="password"] { flex:1; min-width:160px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:4px; font-size:12px; font-family:monospace; }
 .ai-key-row input[type="password"]::placeholder { color:var(--muted); font-family:-apple-system,sans-serif; }
 .ai-plan-btn { background:linear-gradient(135deg,#6e40c9,#9b59b6); color:#fff; border:none; padding:8px 18px; border-radius:4px; font-size:12px; font-weight:700; text-transform:uppercase; cursor:pointer; letter-spacing:0.5px; }
 .ai-plan-btn:hover { opacity:0.88; }
@@ -235,7 +259,7 @@ td input[type="text"] { width: 130px; }
     <span class="dk" style="color:var(--muted)"><b>50–64</b> 0</span>
     <span class="dk" style="color:var(--red)"><b>&gt;64</b> −2 (rust)</span>
   </div>
-  <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+  <div class="facts-grid">
     <div style="background:rgba(212,160,23,0.06);border-left:3px solid var(--gold);padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px;color:var(--muted);line-height:1.6;">
       <b style="color:var(--gold)">Laurel Park Surface Facts</b><br>
       Composition: <b style="color:var(--text)">89% sand, 11% silt/clay</b> — very sandy, drains fast, plays "fast" most days.<br>
@@ -1812,7 +1836,7 @@ td input[type="text"] { width: 130px; }
   <div id="ai-panel" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--purple);margin-bottom:10px;">🤖 AI Strike Planner — Powered by Claude</div>
     <div class="ai-key-row">
-      <input type="password" id="ai-api-key" placeholder="Anthropic API key  (sk-ant-…)  — stored locally, never sent anywhere else" style="flex:1;min-width:280px;">
+      <input type="password" id="ai-api-key" placeholder="Anthropic API key  (sk-ant-…)  — stored locally, never sent anywhere else" style="flex:1;min-width:0;">
       <select id="ai-model-sel" class="ai-model-sel">
         <option value="claude-haiku-4-5-20251001">Haiku (fast)</option>
         <option value="claude-sonnet-4-6" selected="">Sonnet (best)</option>
@@ -3353,7 +3377,7 @@ function generatePlan() {
     : '';
 
   const tierHtml = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div class="facts-grid" style="margin-bottom:12px;">
       <div>
         <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">Win/Place Targets — by Edge %</div>
         <div style="flex-direction:column;gap:4px;">
