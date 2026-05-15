@@ -2678,15 +2678,17 @@ async function fetchLiveOdds() {
   btn.textContent = 'Fetching…';
   btn.disabled = true;
 
-  // Debug panel
+  // Debug panel — insert after the Live Odds button's parent title row
   let dbg = document.getElementById('live-odds-debug');
   if (!dbg) {
     dbg = document.createElement('div');
     dbg.id = 'live-odds-debug';
-    dbg.style.cssText = 'margin:8px 0;padding:8px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace;color:var(--muted);white-space:pre-wrap;max-height:180px;overflow-y:auto;';
-    const section = document.querySelector('.section');
-    const noteBox = section && section.querySelector('.note-box');
-    if (noteBox) noteBox.insertAdjacentElement('afterend', dbg);
+    dbg.style.cssText = 'margin:8px 0 0 0;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace;color:var(--muted);white-space:pre-wrap;max-height:200px;overflow-y:auto;';
+    // Insert right after the section-title div that contains the Live Odds button
+    const liveBtn2 = document.getElementById('live-odds-btn');
+    const titleRow = liveBtn2 && liveBtn2.closest('.section-title');
+    if (titleRow) titleRow.insertAdjacentElement('afterend', dbg);
+    else document.body.appendChild(dbg); // fallback
   }
   dbg.style.display = 'block';
   dbg.textContent = 'Calling Edge Function…';
@@ -2753,9 +2755,10 @@ async function fetchLiveOdds() {
       lines.push('Parsed odds:');
       parsed.forEach(r => lines.push('  PP' + r.pgm + ' ' + r.name + ' -> ' + (r.winOdds ?? 'N/A')));
     } else {
-      lines.push('No odds parsed. Raw preview:');
-      lines.push(raw_preview || '(empty)');
+      lines.push('No odds parsed from response.');
     }
+    lines.push('');
+    lines.push('Raw preview: ' + (raw_preview || '(empty)'));
     dbg.textContent = lines.join('\n');
 
     if (updated.length > 0) {
