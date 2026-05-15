@@ -1951,13 +1951,14 @@ async function adminSaveHorseData(btn) {
     await _sb.from('app_settings').update({ default_weights: adminWeights, updated_at: new Date().toISOString() }).eq('id', 1);
     await _sb.from('race_profiles').update({ weights: adminWeights }).eq('id', _currentProfileId);
 
-    // Also update post_position and ml across ALL profiles for each horse
-    // (these are base data — same for everyone, not per-user overrides)
+    // Update post_position, ml, and act_odds across ALL profiles for each horse.
+    // These are race-specific base data — same for every user, not per-user overrides.
     for (const h of horses) {
       if (!h._sbId) continue;
-      const mlVal = h.ml != null ? parseFloat(parseFloat(h.ml).toFixed(1)) : null;
+      const mlVal  = h.ml  != null ? parseFloat(parseFloat(h.ml).toFixed(1))  : null;
+      const actVal = h.act != null ? parseFloat(parseFloat(h.act).toFixed(1)) : null;
       await _sb.from('race_entries')
-        .update({ post_position: h.post, ml: mlVal })
+        .update({ post_position: h.post, ml: mlVal, act_odds: actVal })
         .eq('horse_id', h._sbId);
     }
 
@@ -2864,11 +2865,8 @@ async function saveHorseData() {
         if (delErr) console.warn('override delete error', h.name, delErr);
       }
 
-      // Update race entry (post position, actual odds)
-      const { error: entErr } = await _sb.from('race_entries')
-        .update({ post_position: h.post, act_odds: h.act })
-        .eq('profile_id', _currentProfileId).eq('horse_id', h._sbId);
-      if (entErr && !firstError) { firstError = 'entry update: ' + entErr.message; console.error('entry update error', h.name, entErr); }
+      // Note: post_position, ml, and act_odds are base data (admin-only).
+      // Regular save only touches horse_overrides (speed fields, pace role, etc.).
     }
     if (firstError) { throw new Error(firstError); }
     // Also save current weights to user's race profile
