@@ -2713,7 +2713,7 @@ async function fetchLiveOdds() {
 
     if (!data.ok) throw new Error(data.error || 'Edge function error');
 
-    const { parsed = [], updated = [], dbError, raw_preview, url } = data;
+    const { parsed = [], updated = [], dbError, raw_preview, url, oddsType = 'unknown', source: srcName = '' } = data;
 
     // Update in-memory horses array and DOM inputs
     let matched = 0;
@@ -2744,7 +2744,9 @@ async function fetchLiveOdds() {
     }
 
     // Build debug summary
+    const oddsLabel = oddsType === 'live-tote' ? '🟢 LIVE TOTE' : oddsType === 'morning-line' ? '🟡 Morning Line (ML)' : oddsType;
     const lines = [
+      'Source: ' + (srcName || '?') + '  |  Odds type: ' + oddsLabel,
       'URL: ' + url,
       'HTTP status: ' + data.status,
       'Parsed runners: ' + parsed.length,
@@ -2753,7 +2755,7 @@ async function fetchLiveOdds() {
     ];
     if (parsed.length > 0) {
       lines.push('Parsed odds:');
-      parsed.forEach(r => lines.push('  PP' + r.pgm + ' ' + r.name + ' -> ' + (r.winOdds ?? 'N/A')));
+      parsed.forEach(r => lines.push('  PP' + r.pgm + ' ' + r.name + ' -> ' + (r.winOdds ?? 'N/A') + (r.source === 'live' ? ' (live)' : ' (ml)')));
     } else {
       lines.push('No odds parsed from response.');
     }
@@ -2765,7 +2767,7 @@ async function fetchLiveOdds() {
       btn.textContent = '✓ ' + updated.length + ' updated';
       setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
     } else {
-      btn.textContent = parsed.length > 0 ? '⚠ No DB match' : '⚠ No odds yet';
+      btn.textContent = parsed.length > 0 ? (updated.length === 0 ? '⚠ No DB match' : '⚠ Check debug') : '⚠ No odds yet';
       setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 4000);
     }
 
