@@ -2775,23 +2775,17 @@ async function fetchLiveOdds() {
 
     const { parsed = [], updated = [], dbError, raw_preview, url, oddsType = 'unknown', source: srcName = '' } = data;
 
-    // Re-fetch race_entries from DB so in-memory state exactly matches what was written,
-    // then re-render the horse table and recalculate output.
-    if (_currentProfileId && updated.length > 0) {
-      const { data: freshEntries } = await _sb
-        .from('race_entries')
-        .select('horse_id, post_position, ml, act_odds')
-        .eq('profile_id', _currentProfileId);
-      if (freshEntries) {
-        for (const entry of freshEntries) {
-          const h = horses.find(x => x._sbId === entry.horse_id);
-          if (h) {
-            h.post = entry.post_position;
-            h.ml   = entry.ml   != null ? parseFloat(parseFloat(entry.ml).toFixed(1))   : h.ml;
-            h.act  = entry.act_odds != null ? parseFloat(parseFloat(entry.act_odds).toFixed(1)) : null;
-          }
-        }
-        horses.sort((a, b) => a.post - b.post);
+    // Update in-memory horses from the edge function response, then re-render.
+    // The 'updated' array contains exactly what was written to the DB:
+    //   { post, horse, odds, column ('ml' or 'act_odds'), source }
+    // We match by post position (integer) which is unambiguous.
+    for (const item of updated) {
+      const itemPost = typeof item.post === 'number' ? item.post : parseInt(item.post, 10);
+      const h = horses.find(x => x.post === itemPost);
+      if (h && item.odds != null) {
+        const val = parseFloat(parseFloat(item.odds).toFixed(1));
+        if (item.column === 'act_odds') h.act = val;
+        else h.ml = val;
       }
     }
     if (typeof renderHorseTable === 'function') renderHorseTable();
