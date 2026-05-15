@@ -2756,8 +2756,7 @@ async function fetchLiveOdds() {
       lines.push('No odds parsed. Raw preview:');
       lines.push(raw_preview || '(empty)');
     }
-    dbg.textContent = lines.join('
-');
+    dbg.textContent = lines.join('\n');
 
     if (updated.length > 0) {
       btn.textContent = '✓ ' + updated.length + ' updated';
