@@ -2775,10 +2775,24 @@ async function fetchLiveOdds() {
 
     const { parsed = [], updated = [], dbError, raw_preview, url, oddsType = 'unknown', source: srcName = '' } = data;
 
-    // Update in-memory horses array from DB results, then re-render everything
-    for (const item of updated) {
-      const h = horses.find(x => x.post === item.post);
-      if (h) h.act = item.odds != null ? parseFloat(parseFloat(item.odds).toFixed(1)) : null;
+    // Re-fetch race_entries from DB so in-memory state exactly matches what was written,
+    // then re-render the horse table and recalculate output.
+    if (_currentProfileId && updated.length > 0) {
+      const { data: freshEntries } = await _sb
+        .from('race_entries')
+        .select('horse_id, post_position, ml, act_odds')
+        .eq('profile_id', _currentProfileId);
+      if (freshEntries) {
+        for (const entry of freshEntries) {
+          const h = horses.find(x => x._sbId === entry.horse_id);
+          if (h) {
+            h.post = entry.post_position;
+            h.ml   = entry.ml   != null ? parseFloat(parseFloat(entry.ml).toFixed(1))   : h.ml;
+            h.act  = entry.act_odds != null ? parseFloat(parseFloat(entry.act_odds).toFixed(1)) : null;
+          }
+        }
+        horses.sort((a, b) => a.post - b.post);
+      }
     }
     if (typeof renderHorseTable === 'function') renderHorseTable();
     if (typeof recalc === 'function') recalc();
