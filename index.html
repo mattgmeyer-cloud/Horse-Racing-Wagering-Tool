@@ -1878,12 +1878,16 @@ async function restoreSelected() {
   
   closeRestoreModal();
 
-  // Reload horse data using stored user
+  // Reload horse data using stored user — this calls renderHorseTable() + recalc() via setTimeout
   if (_currentUser) {
     _currentProfileId = null;
     _loading = true;
     try { await loadHorsesFromSupabase(_currentUser.id, _currentUser.email); }
-    finally { _loading = false; }
+    finally {
+      _loading = false;
+      // Belt-and-suspenders: re-run output after full reload
+      setTimeout(() => { if (typeof recalc === 'function') recalc(); }, 150);
+    }
   }
 }
 
@@ -1915,6 +1919,8 @@ function toggleAdminMode() {
     const liveBtn = document.getElementById('live-odds-btn');
     if (liveBtn) liveBtn.style.display = 'none';
   }
+  // Re-render table to show/hide editable fields and add/del buttons
+  if (typeof renderHorseTable === 'function') renderHorseTable();
 }
 
 async function adminSaveHorseData(btn) {
@@ -2133,6 +2139,9 @@ function showApp(email) {
   document.getElementById('main-app').style.display = 'block';
   const lbl = document.getElementById('auth-user-label');
   if (lbl) lbl.textContent = email || '';
+  // Hide add button by default; toggleAdminMode / renderHorseTable will show it for admins
+  const addBtn = document.querySelector('.add-btn');
+  if (addBtn) addBtn.style.display = 'none';
 }
 function showAuth() {
   document.getElementById('auth-overlay').style.display = 'flex';
@@ -2497,27 +2506,59 @@ function computeModel() {
 }
 
 // ─── RENDER HORSE TABLE ────────────────────────────────────────────────────
+function fmtOdds(v) {
+  if (v == null || v === '') return '—';
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  // Display as fraction where possible (e.g. 4.5 → 9/2, 5 → 5/1)
+  if (n % 1 === 0.5) return (n * 2).toFixed(0) + '/2';
+  if (n % 1 === 0) return n.toFixed(0) + '/1';
+  return n.toFixed(1);
+}
+
 function renderHorseTable() {
   const tbody = document.getElementById('horse-tbody');
   tbody.innerHTML = '';
+  // Show/hide add button based on admin mode
+  const addBtn = document.querySelector('.add-btn');
+  if (addBtn) addBtn.style.display = _adminMode ? '' : 'none';
+
   horses.forEach(h => {
     const color = POST_COLORS[(h.post-1)%POST_COLORS.length];
     const textColor = [2,4].includes(h.post) ? '#000' : '#fff';
     const tr = document.createElement('tr');
     tr.className = 'horse-row';
     tr.id = 'row-'+h.id;
+
+    // Base-data cells: name, post, ML, act — editable only in admin mode
+    const nameCell = _adminMode
+      ? `<input type="text" value="${h.name}" onchange="updateHorse(${h.id},'name',this.value)" style="width:130px">`
+      : `<span style="font-size:12px;font-weight:600;color:var(--text)">${h.name}</span>`;
+    const postCell = _adminMode
+      ? `<input type="number" value="${h.post}" min="1" max="20" onchange="updateHorse(${h.id},'post',+this.value);renderHorseTable()" style="width:44px">`
+      : `<span style="font-size:12px;color:var(--muted)">${h.post}</span>`;
+    const mlCell = _adminMode
+      ? `<input type="number" value="${h.ml}" min="0.2" max="99" step="0.5" onchange="updateHorse(${h.id},'ml',+this.value)">`
+      : `<span style="font-size:12px;color:var(--text)">${fmtOdds(h.ml)}</span>`;
+    const actCell = _adminMode
+      ? `<input type="number" value="${h.act||''}" placeholder="—" min="0.2" max="99" step="0.5" onchange="updateHorse(${h.id},'act',this.value===''?null:+this.value)">`
+      : `<span style="font-size:12px;color:var(--gold);font-weight:${h.act?'700':'400'}">${fmtOdds(h.act)}</span>`;
+    const delCell = _adminMode
+      ? `<button class="del-btn" onclick="removeHorse(${h.id})">✕</button>`
+      : '';
+
     tr.innerHTML = `
       <td><span class="post-badge" style="background:${color};color:${textColor}">${h.post}</span></td>
       <td>
         <div style="display:flex;align-items:center;gap:4px;">
-          <input type="text" value="${h.name}" onchange="updateHorse(${h.id},'name',this.value)" style="width:130px">
+          ${nameCell}
           <button class="notes-btn" onclick="toggleNotes(${h.id})">ℹ</button>
         </div>
         <div class="trainer-badge">${h.trainer}</div>
       </td>
-      <td><input type="number" value="${h.post}" min="1" max="20" onchange="updateHorse(${h.id},'post',+this.value);renderHorseTable()"></td>
-      <td><input type="number" value="${h.ml}" min="0.2" max="99" step="0.5" onchange="updateHorse(${h.id},'ml',+this.value)"></td>
-      <td><input type="number" value="${h.act||''}" placeholder="—" min="0.2" max="99" step="0.5" onchange="updateHorse(${h.id},'act',this.value===''?null:+this.value)"></td>
+      <td>${postCell}</td>
+      <td>${mlCell}</td>
+      <td>${actCell}</td>
       <td><input type="number" value="${h.lastSpeed}" min="60" max="120" onchange="updateHorse(${h.id},'lastSpeed',+this.value)"></td>
       <td><input type="number" value="${h.speed2back||''}" placeholder="—" min="60" max="120" onchange="updateHorse(${h.id},'speed2back',this.value===''?null:+this.value)"></td>
       <td><input type="number" value="${h.dslr}" min="1" max="365" onchange="updateHorse(${h.id},'dslr',+this.value)"></td>
@@ -2542,7 +2583,7 @@ function renderHorseTable() {
       <td><input type="number" value="${h.surfAdj}" min="-10" max="10" onchange="updateHorse(${h.id},'surfAdj',+this.value)"></td>
       <td><input type="number" value="${h.trainerAdj}" min="-10" max="10" onchange="updateHorse(${h.id},'trainerAdj',+this.value)"></td>
       <td style="text-align:center"><input type="checkbox" ${h.ignoreTrend?'checked':''} onchange="updateHorse(${h.id},'ignoreTrend',this.checked)" style="accent-color:var(--red);width:14px;height:14px;" title="Ignore speed trend (treat as neutral)"></td>
-      <td><button class="del-btn" onclick="removeHorse(${h.id})">✕</button></td>
+      <td>${delCell}</td>
     `;
     tbody.appendChild(tr);
 
