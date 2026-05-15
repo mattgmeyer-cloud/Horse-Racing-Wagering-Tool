@@ -28,7 +28,7 @@ body { background: transparent; }
 
 .header { margin-bottom: 20px; }
 .header h1 { font-size: 20px; color: var(--gold); text-transform: uppercase; letter-spacing: 2px; }
-.header .sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.header .sub { color: var(--text); font-size: 11px; margin-top: 4px; }
 .venue-badge { display: inline-block; background: rgba(212,160,23,0.12); border: 1px solid rgba(212,160,23,0.4); color: var(--gold); padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-left: 8px; }
 
 .section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 18px; margin-bottom: 16px; }
@@ -172,14 +172,14 @@ td input[type="text"] { width: 130px; }
 <div class="header" style="position:relative;">
   <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:10px;">
     <div id="admin-mode-toggle" style="display:none;align-items:center;gap:6px;">
-      <span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Admin</span>
+      <span style="font-size:10px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Admin</span>
       <label class="admin-switch" title="Toggle admin mode">
         <input type="checkbox" id="admin-toggle-btn" onchange="toggleAdminMode()">
         <span class="admin-slider"></span>
       </label>
     </div>
-    <span id="auth-user-label" style="font-size:11px;color:var(--muted);"></span>
-    <button onclick="handleLogout()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Sign Out</button>
+    <span id="auth-user-label" style="font-size:11px;color:var(--text);"></span>
+    <button onclick="handleLogout()" style="background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">Sign Out</button>
   </div>
   <h1>🏇 2026 Preakness Stakes — Betting Model
     <span class="venue-badge">Laurel Park · First Time</span>
