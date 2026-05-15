@@ -263,6 +263,7 @@ td input[type="text"] { width: 130px; }
   <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
     <span>Field — 14 Starters (posts drawn May 11) · Click ℹ for AI research notes</span>
     <button onclick="openRestoreModal()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;margin-right:6px;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Restore Defaults</button>
+    <button id="live-odds-btn" onclick="fetchLiveOdds()" style="display:none;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;margin-right:6px;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">&#x1F504; Live Odds</button>
     <button id="save-horses-btn" onclick="saveHorseData()" style="background: transparent; border-color: var(--green); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; color: var(--green); padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Save Horse Data</button>
   </div>
   <div class="note-box">
@@ -1905,10 +1906,14 @@ function toggleAdminMode() {
       if (section) section.insertBefore(banner, section.firstChild);
     }
     banner.style.display = 'block';
+    const liveBtn = document.getElementById('live-odds-btn');
+    if (liveBtn) liveBtn.style.display = 'inline-block';
   } else {
     if (header) header.style.borderBottom = '';
     const banner = document.getElementById('admin-banner');
     if (banner) banner.style.display = 'none';
+    const liveBtn = document.getElementById('live-odds-btn');
+    if (liveBtn) liveBtn.style.display = 'none';
   }
 }
 
@@ -2662,6 +2667,112 @@ async function _getHandle() {
   _fh = picks[0];
   try { await _put('fh', _fh); } catch(e) {}
   return _fh;
+}
+
+async function fetchLiveOdds() {
+  const btn = document.getElementById('live-odds-btn');
+  if (!_adminMode) return;
+  if (!_currentProfileId) { alert('No active race profile.'); return; }
+
+  const origText = btn.textContent;
+  btn.textContent = 'Fetching…';
+  btn.disabled = true;
+
+  // Debug panel
+  let dbg = document.getElementById('live-odds-debug');
+  if (!dbg) {
+    dbg = document.createElement('div');
+    dbg.id = 'live-odds-debug';
+    dbg.style.cssText = 'margin:8px 0;padding:8px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace;color:var(--muted);white-space:pre-wrap;max-height:180px;overflow-y:auto;';
+    const section = document.querySelector('.section');
+    const noteBox = section && section.querySelector('.note-box');
+    if (noteBox) noteBox.insertAdjacentElement('afterend', dbg);
+  }
+  dbg.style.display = 'block';
+  dbg.textContent = 'Calling Edge Function…';
+
+  try {
+    const resp = await fetch(
+      'https://nwbswsasqvynpugxhyly.supabase.co/functions/v1/fetch-live-odds',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trackId: 'LRL',
+          raceDate: '05/16/2026',
+          raceNum: 13,
+          profileId: _currentProfileId,
+          dryRun: false
+        })
+      }
+    );
+    const data = await resp.json();
+    console.log('[fetchLiveOdds]', data);
+
+    if (!data.ok) throw new Error(data.error || 'Edge function error');
+
+    const { parsed = [], updated = [], dbError, raw_preview, url } = data;
+
+    // Update in-memory horses array and DOM inputs
+    let matched = 0;
+    for (const item of updated) {
+      // Find horse in horses array by post position
+      const h = horses.find(x => x.post === item.post);
+      if (h) {
+        h.act = item.odds;
+        matched++;
+        // Update the corresponding Act. input in the DOM
+        // Inputs are identified by their onchange attr containing updateHorse(idx,'act'
+        const allInputs = document.querySelectorAll('input[type=number]');
+        for (const inp of allInputs) {
+          const oc = inp.getAttribute('onchange') || '';
+          if (oc.includes("'act'")) {
+            // Find the row for this horse by scanning nearby name input
+            const row = inp.closest('tr');
+            if (row) {
+              const nameInput = row.querySelector('input[type=text]');
+              if (nameInput && nameInput.value.trim().toLowerCase() === h.name.toLowerCase()) {
+                inp.value = item.odds;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Build debug summary
+    const lines = [
+      'URL: ' + url,
+      'HTTP status: ' + data.status,
+      'Parsed runners: ' + parsed.length,
+      'DB updated: ' + updated.length + (dbError ? ' (DB error: ' + dbError + ')' : ''),
+      '',
+    ];
+    if (parsed.length > 0) {
+      lines.push('Parsed odds:');
+      parsed.forEach(r => lines.push('  PP' + r.pgm + ' ' + r.name + ' -> ' + (r.winOdds ?? 'N/A')));
+    } else {
+      lines.push('No odds parsed. Raw preview:');
+      lines.push(raw_preview || '(empty)');
+    }
+    dbg.textContent = lines.join('
+');
+
+    if (updated.length > 0) {
+      btn.textContent = '✓ ' + updated.length + ' updated';
+      setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
+    } else {
+      btn.textContent = parsed.length > 0 ? '⚠ No DB match' : '⚠ No odds yet';
+      setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 4000);
+    }
+
+  } catch(e) {
+    console.error('[fetchLiveOdds]', e);
+    dbg.textContent = 'Error: ' + e.message;
+    btn.textContent = '✗ Failed';
+    setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
+  }
 }
 
 async function saveHorseData() {
