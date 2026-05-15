@@ -1951,6 +1951,16 @@ async function adminSaveHorseData(btn) {
     await _sb.from('app_settings').update({ default_weights: adminWeights, updated_at: new Date().toISOString() }).eq('id', 1);
     await _sb.from('race_profiles').update({ weights: adminWeights }).eq('id', _currentProfileId);
 
+    // Also update post_position and ml across ALL profiles for each horse
+    // (these are base data — same for everyone, not per-user overrides)
+    for (const h of horses) {
+      if (!h._sbId) continue;
+      const mlVal = h.ml != null ? parseFloat(parseFloat(h.ml).toFixed(1)) : null;
+      await _sb.from('race_entries')
+        .update({ post_position: h.post, ml: mlVal })
+        .eq('horse_id', h._sbId);
+    }
+
     if (btn) { btn.textContent = '✓ Base Saved'; setTimeout(() => btn.textContent = 'Save Horse Data', 1800); }
   } catch(e) {
     console.error(e);
@@ -2510,9 +2520,6 @@ function fmtOdds(v) {
   if (v == null || v === '') return '—';
   const n = parseFloat(v);
   if (isNaN(n)) return '—';
-  // Display as fraction where possible (e.g. 4.5 → 9/2, 5 → 5/1)
-  if (n % 1 === 0.5) return (n * 2).toFixed(0) + '/2';
-  if (n % 1 === 0) return n.toFixed(0) + '/1';
   return n.toFixed(1);
 }
 
