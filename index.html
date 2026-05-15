@@ -2776,20 +2776,27 @@ async function fetchLiveOdds() {
     const { parsed = [], updated = [], dbError, raw_preview, url, oddsType = 'unknown', source: srcName = '' } = data;
 
     // Update in-memory horses from the edge function response, then re-render.
-    // The 'updated' array contains exactly what was written to the DB:
-    //   { post, horse, odds, column ('ml' or 'act_odds'), source }
-    // We match by post position (integer) which is unambiguous.
+    const diagLines = [];
+    let matchCount = 0;
     for (const item of updated) {
       const itemPost = typeof item.post === 'number' ? item.post : parseInt(item.post, 10);
       const h = horses.find(x => x.post === itemPost);
       if (h && item.odds != null) {
         const val = parseFloat(parseFloat(item.odds).toFixed(1));
+        const before = item.column === 'act_odds' ? h.act : h.ml;
         if (item.column === 'act_odds') h.act = val;
         else h.ml = val;
+        diagLines.push('  PP'+itemPost+' '+h.name+': '+item.column+' '+before+' → '+val);
+        matchCount++;
+      } else {
+        diagLines.push('  PP'+itemPost+' '+(h?h.name:'NO MATCH')+': col='+item.column+' odds='+item.odds);
       }
     }
+    console.log('[fetchLiveOdds] matched', matchCount, 'of', updated.length, 'horses');
+    diagLines.forEach(l => console.log(l));
     if (typeof renderHorseTable === 'function') renderHorseTable();
     if (typeof recalc === 'function') recalc();
+    console.log('[fetchLiveOdds] renderHorseTable + recalc done');
 
     // Build debug summary
     const oddsLabel = oddsType === 'live-tote' ? '🟢 LIVE TOTE' : oddsType === 'morning-line' ? '🟡 Morning Line (ML)' : oddsType;
@@ -2797,20 +2804,16 @@ async function fetchLiveOdds() {
     const colLabel = dbColumn === 'act_odds' ? 'Act. Odds' : 'ML';
     const lines = [
       'Source: ' + (srcName || '?') + '  |  Odds type: ' + oddsLabel + '  → writing to: ' + colLabel,
-      'URL: ' + url,
-      'HTTP status: ' + data.status,
-      'Parsed runners: ' + parsed.length,
-      'DB updated: ' + updated.length + (dbError ? ' (DB error: ' + dbError + ')' : ''),
+      'Parsed: ' + parsed.length + '  |  DB updated: ' + updated.length + '  |  In-memory matched: ' + matchCount + (dbError ? '  (DB error: ' + dbError + ')' : ''),
       '',
     ];
+    lines.push('In-memory update:');
+    diagLines.forEach(l => lines.push(l));
+    lines.push('');
     if (parsed.length > 0) {
       lines.push('Parsed odds:');
       parsed.forEach(r => lines.push('  PP' + r.pgm + ' ' + r.name + ' -> ' + (r.winOdds ?? 'N/A') + (r.source === 'live' ? ' (live)' : ' (ml)')));
-    } else {
-      lines.push('No odds parsed from response.');
     }
-    lines.push('');
-    lines.push('Raw preview: ' + (raw_preview || '(empty)'));
     dbg.textContent = lines.join('\n');
 
     if (updated.length > 0) {
