@@ -2795,8 +2795,20 @@ async function fetchLiveOdds() {
     console.log('[fetchLiveOdds] matched', matchCount, 'of', updated.length, 'horses');
     diagLines.forEach(l => console.log(l));
     if (typeof renderHorseTable === 'function') renderHorseTable();
+    // Verify the DOM actually updated
+    const _tbody = document.getElementById('horse-tbody');
+    const _rows = _tbody ? _tbody.querySelectorAll('tr.horse-row') : [];
+    console.log('[fetchLiveOdds] renderHorseTable done. tbody rows:', _rows.length);
+    if (_rows.length > 0) {
+      // Log the 4th cell (ML) and 5th cell (Act) of the first row
+      const _cells = _rows[0].querySelectorAll('td');
+      const _mlEl  = _cells[3]?.querySelector('input,span');
+      const _actEl = _cells[4]?.querySelector('input,span');
+      console.log('[fetchLiveOdds] row[0] ML el:', _mlEl?.tagName, 'value/text:', _mlEl?.value ?? _mlEl?.textContent);
+      console.log('[fetchLiveOdds] row[0] Act el:', _actEl?.tagName, 'value/text:', _actEl?.value ?? _actEl?.textContent);
+    }
     if (typeof recalc === 'function') recalc();
-    console.log('[fetchLiveOdds] renderHorseTable + recalc done');
+    console.log('[fetchLiveOdds] recalc done');
 
     // Build debug summary
     const oddsLabel = oddsType === 'live-tote' ? '🟢 LIVE TOTE' : oddsType === 'morning-line' ? '🟡 Morning Line (ML)' : oddsType;
