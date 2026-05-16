@@ -3475,21 +3475,14 @@ function buildAIPrompt() {
   // Sort by win probability for the table
   const byProb = [...results].sort((a,b) => b.winProb - a.winProb);
 
-  // Parse TimeformUS Early/Late from notes prefix
-  function parseTimeformUS(notes) {
-    const m = (notes || '').match(/Early\s*(\d+)\s*\/\s*Late\s*(\d+)/);
-    return m ? { early: m[1], late: m[2] } : { early: '—', late: '—' };
-  }
-
   const tableRows = byProb.map(h => {
-    const tf = parseTimeformUS(h.notes);
     const trend = h.lastSpeed - (h.speed2back || h.lastSpeed);
     const trendStr = trend > 0 ? `+${trend}` : `${trend}`;
     const edge = h.edgePct.toFixed(0);
     const edgeStr = h.edgePct > 0 ? `+${edge}%` : `${edge}%`;
     const cls = CLASS_LABELS[h.lastRaceClass||'g3']||'G3';
     const s2b = h.speed2back ? h.speed2back : '—';
-    return `  Post ${h.post} | ${h.name.padEnd(18)} | ${h.paceRole.padEnd(8)} | TfUS E${tf.early} / L${tf.late} | Beyer ${String(h.lastSpeed).padStart(2)} (2bk ${s2b}) | Trend ${trendStr.padStart(3)} | ${h.dslr}d | ${cls.padEnd(6)} | ${(h.winProb*100).toFixed(1)}% | ${((1/h.winProb)-1).toFixed(1)}-1 fair | ML ${h.ml}-1 | Act ${h.act ? h.act.toFixed(1)+'-1' : '—'} | Edge ${edgeStr}`;
+    return `  Post ${h.post} | ${h.name.padEnd(18)} | ${h.paceRole.padEnd(8)} | Beyer ${String(h.lastSpeed).padStart(2)} (2bk ${s2b}) | Trend ${trendStr.padStart(3)} | ${h.dslr}d | ${cls.padEnd(6)} | ${(h.winProb*100).toFixed(1)}% | ${((1/h.winProb)-1).toFixed(1)}-1 fair | ML ${h.ml}-1 | Act ${h.act ? h.act.toFixed(1)+'-1' : '—'} | Edge ${edgeStr}`;
   }).join('\n');
 
   const topValue = byProb.filter(h => h.edgePct > 10).map(h => `${h.name} (${h.edgePct.toFixed(0)}% edge at ${h.ml}-1)`).join(', ') || 'none with >10% edge';
@@ -3541,14 +3534,13 @@ TRACK CONDITION: ${track}
 BUDGET: $${budget}
 
 MODEL OUTPUT (sorted by win probability):
-  Post | Horse              | Pace     | TimeformUS E/L  | Beyer (2-back) | Trend | DSLR | Class  | Win%  | Fair Odds  | ML    | Act   | Edge
+  Post | Horse              | Pace     | Beyer (2-back) | Trend | DSLR | Class  | Win%  | Fair Odds  | ML    | Act   | Edge
 ${tableRows}
 
 KEY CONTEXT:
 FIGURE LEGEND:
-- Beyer Speed Figure: composite race speed rating — higher = faster overall. Last race and 2-back shown.
-- TimeformUS Early Pace (E): pace energy through early fractions — higher = faster pace-setter. NOT comparable to Beyer scale.
-- TimeformUS Late Pace (L): finishing/closing ability — higher = better closer. NOT comparable to Beyer scale.
+- Beyer Speed Figure: composite race speed rating (higher = faster). Last race and 2-back shown. Drives model score.
+- TimeformUS Early/Late pace figures: see per-horse context notes below. Provided for pace narrative only — not inputs to the model score or edge calculations.
 
 - ${frontRunnerNote}
 - Class adjustment applied: G1/G2/G3 last race = face value; Allow = −1; OC/SOC = −3; Claim = −4
